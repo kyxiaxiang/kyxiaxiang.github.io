@@ -4,6 +4,27 @@
   
   
   <entry>
+    <title>蓝队训练程序生成器</title>
+    <link href="/2022/12/17/BlueTeamTestBuilder/"/>
+    <url>/2022/12/17/BlueTeamTestBuilder/</url>
+    
+    <content type="html"><![CDATA[<p>​前言：红队不应该陷入琐碎的陷阱</p><h2 id="郑重声明：本程序旨在为正规的RT同胞们提供便捷的帮助，严禁黑灰色产业利用和依靠免杀赚取流量、虚荣心等行为。一经发现将永不更新！！！"><a href="#郑重声明：本程序旨在为正规的RT同胞们提供便捷的帮助，严禁黑灰色产业利用和依靠免杀赚取流量、虚荣心等行为。一经发现将永不更新！！！" class="headerlink" title="郑重声明：本程序旨在为正规的RT同胞们提供便捷的帮助，严禁黑灰色产业利用和依靠免杀赚取流量、虚荣心等行为。一经发现将永不更新！！！"></a><strong>郑重声明：本程序旨在为正规的RT同胞们提供便捷的帮助，严禁黑灰色产业利用和依靠免杀赚取流量、虚荣心等行为。一经发现将永不更新！！！</strong></h2><p>根据蓝队对红队样本的狩猎过程，可以定位到以下几种特征：</p><ul><li>ETW 暴露可疑的 Windows API 调用，例如打开 LSASS 句柄、修改&#x2F;读取远程进程内存</li><li>网络流量异常，数据包级别的特殊性</li><li>从 Office 宏中提取的可疑 VBA 保留字和函数</li><li>对敏感文件&#x2F;注册表键的可疑访问</li><li>特定于文件格式的异常：PE 标头操作、奇怪的 VBA 代码</li><li>HIPS 风格的行为规则，触发不常见的系统范围的活动</li><li>EDR 捕获父子层次结构与现在明显存在的差异</li></ul><p>目前网络上找到的各式加载器等工具，都已经被各大安全厂商记录特征，这无疑会给RT添加诸多不必要的麻烦。从优秀的掩日和遮天项目中我们可以发现，最初的开源是造成这些项目快速死亡的原因，并且我觉得Golang并不适合来制作加载器这种东西，一是具有明显的特征，二是体积很庞大，我觉得超过1MB的文件就属于巨大。python更是如此，而powershell的我在之前的文章有提到过如何规避EDR的检测。</p><p>​一个优秀的EDR对抗程序所应该有的功能，我觉得有以下这些：</p><ol><li>Shellcode加密 </li><li>减少熵 </li><li>规避沙箱 </li><li>导入表混淆 </li><li>禁用 Windows 事件跟踪 (ETW) </li><li>规避常见的恶意 API 调用模式 </li><li>直接系统调用并规避“系统调用标记” </li><li>unhook<code>ntdll.dll</code></li><li>欺骗线程调用堆栈 </li><li>内存加密</li></ol><p>蓝队训练程序生成器 是根据 <a href="https://github.com/knownsec/shellcodeloader">https://github.com/knownsec/shellcodeloader</a> 的框架进行的二开，因为我实在是太烂了，效果好就行不追求别的。这里延续采用了这个项目的shellcode加密模式，后期可能会对整个框架进行大改刀和重构。重写了原本的权限维持的方法（这里采用了计划任务的方式），添加了修补Etw的功能，重写了反沙箱功能（自己在虚拟机测试请不要开启此功能），目前先公开一个x64的加载模块，用来给各位师傅测试，并提供一些宝贵的意见。为了保障长久有效，请给各位师傅不要将 生成的程序 上传到VT和云沙箱等地方（虽然我知道有些人不会听），如果第一个测试模块 被记录的过快的话，将会影响遐想公开的积极性。本程序因为是二开的，所以也不会开源，如果介意的可以断网运行，或者不使用本工具。</p><p>如果需要测试效果可以使用antiscan.me平台，他不会和云厂商共享你的样本。</p><p>在测试中初代版本和测试模块 新的心跳 的生成文件测试结果如下：</p><p><img src="https://kyxiaxiang.github.io/2022/12/17/BlueTeamTestBuilder/001.png"></p><p><img src="https://kyxiaxiang.github.io/2022/12/17/BlueTeamTestBuilder/002.png"></p><p>动态的话遐想测试了KES（卡巴斯基EDR），Defender，火绒，和国产之光某数字。全程静默无提示，这里需要注意开启权限维持的话需要UAC启动该程序，遐想并不建议开启此功能。</p><p>后期按照我上面的所说的EDR对抗来添加新的功能和模块。比如unhook等功能。</p><p>项目链接：<a href="https://github.com/kyxiaxiang/BlueTeamTestBuilder">https://github.com/kyxiaxiang/BlueTeamTestBuilder</a></p>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>bypass</tag>
+      
+      <tag>红队</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
     <title>浅谈AMSI和Etw</title>
     <link href="/2022/12/14/AMSIandEtw/"/>
     <url>/2022/12/14/AMSIandEtw/</url>

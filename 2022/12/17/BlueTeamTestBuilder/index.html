@@ -1,0 +1,611 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="kyxx">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="​	前言：红队不应该陷入琐碎的陷阱 郑重声明：本程序旨在为正规的RT同胞们提供便捷的帮助，严禁黑灰色产业利用和依靠免杀赚取流量、虚荣心等行为。一经发现将永不更新！！！根据蓝队对红队样本的狩猎过程，可以定位到以下几种特征：  ETW 暴露可疑的 Windows API 调用，例如打开 LSASS 句柄、修改&#x2F;读取远程进程内存 网络流量异常，数据包级别的特殊性 从 Office 宏中提取的可">
+<meta property="og:type" content="article">
+<meta property="og:title" content="蓝队训练程序生成器">
+<meta property="og:url" content="http://example.com/2022/12/17/BlueTeamTestBuilder/index.html">
+<meta property="og:site_name" content="遐想的小窝">
+<meta property="og:description" content="​	前言：红队不应该陷入琐碎的陷阱 郑重声明：本程序旨在为正规的RT同胞们提供便捷的帮助，严禁黑灰色产业利用和依靠免杀赚取流量、虚荣心等行为。一经发现将永不更新！！！根据蓝队对红队样本的狩猎过程，可以定位到以下几种特征：  ETW 暴露可疑的 Windows API 调用，例如打开 LSASS 句柄、修改&#x2F;读取远程进程内存 网络流量异常，数据包级别的特殊性 从 Office 宏中提取的可">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://kyxiaxiang.github.io/2022/12/17/BlueTeamTestBuilder/001.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/2022/12/17/BlueTeamTestBuilder/002.png">
+<meta property="article:published_time" content="2022-12-17T08:12:36.000Z">
+<meta property="article:modified_time" content="2022-12-17T09:09:19.998Z">
+<meta property="article:author" content="kyxx">
+<meta property="article:tag" content="bypass">
+<meta property="article:tag" content="红队">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://kyxiaxiang.github.io/2022/12/17/BlueTeamTestBuilder/001.png">
+  
+  
+  
+  <title>蓝队训练程序生成器 - 遐想的小窝</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"example.com","root":"/","version":"1.9.3","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>遐想的小窝</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="蓝队训练程序生成器"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2022-12-17 16:12" pubdate>
+          2022年12月17日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          1.2k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          11 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">蓝队训练程序生成器</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>​	前言：红队不应该陷入琐碎的陷阱</p>
+<h2 id="郑重声明：本程序旨在为正规的RT同胞们提供便捷的帮助，严禁黑灰色产业利用和依靠免杀赚取流量、虚荣心等行为。一经发现将永不更新！！！"><a href="#郑重声明：本程序旨在为正规的RT同胞们提供便捷的帮助，严禁黑灰色产业利用和依靠免杀赚取流量、虚荣心等行为。一经发现将永不更新！！！" class="headerlink" title="郑重声明：本程序旨在为正规的RT同胞们提供便捷的帮助，严禁黑灰色产业利用和依靠免杀赚取流量、虚荣心等行为。一经发现将永不更新！！！"></a><strong>郑重声明：本程序旨在为正规的RT同胞们提供便捷的帮助，严禁黑灰色产业利用和依靠免杀赚取流量、虚荣心等行为。一经发现将永不更新！！！</strong></h2><p>根据蓝队对红队样本的狩猎过程，可以定位到以下几种特征：</p>
+<ul>
+<li>ETW 暴露可疑的 Windows API 调用，例如打开 LSASS 句柄、修改&#x2F;读取远程进程内存</li>
+<li>网络流量异常，数据包级别的特殊性</li>
+<li>从 Office 宏中提取的可疑 VBA 保留字和函数</li>
+<li>对敏感文件&#x2F;注册表键的可疑访问</li>
+<li>特定于文件格式的异常：PE 标头操作、奇怪的 VBA 代码</li>
+<li>HIPS 风格的行为规则，触发不常见的系统范围的活动</li>
+<li>EDR 捕获父子层次结构与现在明显存在的差异</li>
+</ul>
+<p>目前网络上找到的各式加载器等工具，都已经被各大安全厂商记录特征，这无疑会给RT添加诸多不必要的麻烦。从优秀的掩日和遮天项目中我们可以发现，最初的开源是造成这些项目快速死亡的原因，并且我觉得Golang并不适合来制作加载器这种东西，一是具有明显的特征，二是体积很庞大，我觉得超过1MB的文件就属于巨大。python更是如此，而powershell的我在之前的文章有提到过如何规避EDR的检测。</p>
+<p>​	一个优秀的EDR对抗程序所应该有的功能，我觉得有以下这些：</p>
+<ol>
+<li>Shellcode加密 </li>
+<li>减少熵 </li>
+<li>规避沙箱 </li>
+<li>导入表混淆 </li>
+<li>禁用 Windows 事件跟踪 (ETW) </li>
+<li>规避常见的恶意 API 调用模式 </li>
+<li>直接系统调用并规避“系统调用标记” </li>
+<li>unhook<code>ntdll.dll</code></li>
+<li>欺骗线程调用堆栈 </li>
+<li>内存加密</li>
+</ol>
+<p>蓝队训练程序生成器 是根据 <a target="_blank" rel="noopener" href="https://github.com/knownsec/shellcodeloader">https://github.com/knownsec/shellcodeloader</a> 的框架进行的二开，因为我实在是太烂了，效果好就行不追求别的。这里延续采用了这个项目的shellcode加密模式，后期可能会对整个框架进行大改刀和重构。重写了原本的权限维持的方法（这里采用了计划任务的方式），添加了修补Etw的功能，重写了反沙箱功能（自己在虚拟机测试请不要开启此功能），目前先公开一个x64的加载模块，用来给各位师傅测试，并提供一些宝贵的意见。为了保障长久有效，请给各位师傅不要将 生成的程序 上传到VT和云沙箱等地方（虽然我知道有些人不会听），如果第一个测试模块 被记录的过快的话，将会影响遐想公开的积极性。本程序因为是二开的，所以也不会开源，如果介意的可以断网运行，或者不使用本工具。</p>
+<p>如果需要测试效果可以使用antiscan.me平台，他不会和云厂商共享你的样本。</p>
+<p>在测试中初代版本和测试模块 新的心跳 的生成文件测试结果如下：</p>
+<p><img src="https://kyxiaxiang.github.io/2022/12/17/BlueTeamTestBuilder/001.png" srcset="/img/loading.gif" lazyload></p>
+<p><img src="https://kyxiaxiang.github.io/2022/12/17/BlueTeamTestBuilder/002.png" srcset="/img/loading.gif" lazyload></p>
+<p>动态的话遐想测试了KES（卡巴斯基EDR），Defender，火绒，和国产之光某数字。全程静默无提示，这里需要注意开启权限维持的话需要UAC启动该程序，遐想并不建议开启此功能。</p>
+<p>后期按照我上面的所说的EDR对抗来添加新的功能和模块。比如unhook等功能。</p>
+<p>项目链接：<a target="_blank" rel="noopener" href="https://github.com/kyxiaxiang/BlueTeamTestBuilder">https://github.com/kyxiaxiang/BlueTeamTestBuilder</a></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/bypass/">#bypass</a>
+      
+        <a href="/tags/%E7%BA%A2%E9%98%9F/">#红队</a>
+      
+    </div>
+  
+</div>
+
+
+              
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2022/12/14/AMSIandEtw/" title="浅谈AMSI和Etw">
+                        <span class="hidden-mobile">浅谈AMSI和Etw</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       
+    </div>
+  
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.0/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.18.2/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

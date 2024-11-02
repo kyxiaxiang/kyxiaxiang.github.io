@@ -1,0 +1,1177 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="keyixiaxiang">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="很早之前就看到过一篇MDSec的文章 https:&#x2F;&#x2F;www.mdsec.co.uk&#x2F;2021&#x2F;06&#x2F;bypassing-image-load-kernel-callbacks&#x2F; 提到了一个很有趣的点，图像加载回调，也就是对应内核的 PsSetLoadImageNotifyRoutine函数。 什么是图像加载回调PsSetLoadImageNotifyRoutine 是 Windows 内核提供的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LoadLibrary的那些事儿（一）">
+<meta property="og:url" content="https://kyxiaxiang.github.io/2024/11/01/AboutLoadLibrary-01/index.html">
+<meta property="og:site_name" content="可以遐想的Blog">
+<meta property="og:description" content="很早之前就看到过一篇MDSec的文章 https:&#x2F;&#x2F;www.mdsec.co.uk&#x2F;2021&#x2F;06&#x2F;bypassing-image-load-kernel-callbacks&#x2F; 提到了一个很有趣的点，图像加载回调，也就是对应内核的 PsSetLoadImageNotifyRoutine函数。 什么是图像加载回调PsSetLoadImageNotifyRoutine 是 Windows 内核提供的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241101141742.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241101144536.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241101144548.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241101144557.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241101150704.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241101150717.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241101150731.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01%5C20241101155602.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241102025101.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241014070016.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241102031041.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241102041035.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241102054028.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241102065125.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241102065938.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241102072352.png">
+<meta property="article:published_time" content="2024-11-01T16:58:49.000Z">
+<meta property="article:modified_time" content="2024-11-02T12:33:28.585Z">
+<meta property="article:author" content="keyixiaxiang">
+<meta property="article:tag" content="bypass opsec">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://kyxiaxiang.github.io/AboutLoadLibrary-01/20241101141742.png">
+  
+  
+  
+  <title>LoadLibrary的那些事儿（一） - 可以遐想的Blog</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/c/font_1749284_5i9bdhy70f8.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/c/font_1736178_k526ubmyhba.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"kyxiaxiang.github.io","root":"/","version":"1.9.8","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false},"umami":{"src":null,"website_id":null,"domains":null,"start_time":"2024-01-01T00:00:00.000Z","token":null,"api_server":null}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 7.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>遐想的自留地</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="LoadLibrary的那些事儿（一）"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-11-01 12:58" pubdate>
+          2024年11月1日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          13k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          106 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">LoadLibrary的那些事儿（一）</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>很早之前就看到过一篇MDSec的文章 <a target="_blank" rel="noopener" href="https://www.mdsec.co.uk/2021/06/bypassing-image-load-kernel-callbacks/">https://www.mdsec.co.uk/2021/06/bypassing-image-load-kernel-callbacks/</a> 提到了一个很有趣的点，图像加载回调，也就是对应内核的 <code>PsSetLoadImageNotifyRoutine</code>函数。</p>
+<h2 id="什么是图像加载回调"><a href="#什么是图像加载回调" class="headerlink" title="什么是图像加载回调"></a>什么是图像加载回调</h2><p><code>PsSetLoadImageNotifyRoutine</code> 是 Windows 内核提供的一个函数，用于注册驱动程序提供的回调函数。当系统<strong>加载或映射</strong>一个图像（例如 DLL 或 EXE）到内存时，内核会调用该回调函数，通知驱动程序此事件。</p>
+<p>该函数的原型如下：</p>
+<figure class="highlight scss"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs scss">NTSTATUS <span class="hljs-built_in">PsSetLoadImageNotifyRoutine</span>(<br>  PLOAD_IMAGE_NOTIFY_ROUTINE NotifyRoutine<br>);<br></code></pre></td></tr></table></figure>
+
+<p>其中，<code>NotifyRoutine</code> 是指向驱动程序实现的回调函数的指针。</p>
+<p>Demo：</p>
+<figure class="highlight arduino"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs arduino"><br><span class="hljs-function"><span class="hljs-type">void</span> <span class="hljs-title">LoadImageNotifyRoutine</span><span class="hljs-params">(PUNICODE_STRING imageName,	HANDLE pid, PIMAGE_INFO imageInfo)</span></span><br><span class="hljs-function"></span>&#123;<br>	<span class="hljs-built_in">UNREFERENCED_PARAMETER</span>(imageInfo);<br>	PEPROCESS process = <span class="hljs-literal">NULL</span>;<br>	PUNICODE_STRING processName = <span class="hljs-literal">NULL</span>;<br>	<span class="hljs-built_in">PsLookupProcessByProcessId</span>(pid, &amp;process);<br>	<span class="hljs-built_in">SeLocateProcessImageName</span>(process, &amp;processName);<br><br>	<span class="hljs-built_in">DbgPrint</span>(<span class="hljs-string">&quot;%wZ (%d) loaded %wZ&quot;</span>, processName, pid, imageName);<br>&#125;<br><br><span class="hljs-built_in">PsSetLoadImageNotifyRoutine</span>(LoadImageNotifyRoutine);<br></code></pre></td></tr></table></figure>
+
+
+
+<p>需要注意的是，注册的回调函数数量是有限制的。在 Windows 8.1 之前，最多允许 8 个驱动程序同时注册回调函数。在 Windows 8.1 及之后的版本中，这一限制增加到 64 个。 </p>
+<p>在卸载驱动程序之前，必须调用 <code>PsRemoveLoadImageNotifyRoutine</code> 函数来注销先前注册的回调函数，以避免潜在的系统不稳定或资源泄漏。 </p>
+<p>通过使用 <code>PsSetLoadImageNotifyRoutine</code>，驱动程序可以监控系统中加载的图像，从而实现特定的功能，如安全监控、日志记录或其他需要跟踪图像加载事件的操作。</p>
+<p>那我们需要去理解推断一下，AV&#x2F;EDR这些会如何利用这一回调。</p>
+<ol>
+<li><strong>监控进程启动和模块加载</strong></li>
+</ol>
+<p>通过 <code>PsSetLoadImageNotifyRoutine</code> 注册的回调函数，EDR 可以在每次进程加载可执行文件或动态链接库（DLL）时接收到通知。这让 EDR 能够在每个模块加载到内存时进行检查，并根据预设规则来判断文件是否可信或存在可疑行为。</p>
+<ol start="2">
+<li><strong>识别恶意模块注入</strong></li>
+</ol>
+<p>恶意软件常通过 DLL 注入等技术将自身注入到合法进程中，以隐藏其活动。EDR 利用 <code>PsSetLoadImageNotifyRoutine</code> 能够识别这种模块注入行为，通过分析加载的模块源路径、名称等信息来判断是否属于常见的恶意模块注入特征。</p>
+<ol start="3">
+<li><strong>阻止特定模块的加载</strong></li>
+</ol>
+<p>一些 EDR 软件利用 <code>PsSetLoadImageNotifyRoutine</code> 检测到特定模块（如未签名的或来源可疑的模块）加载时，可以采取阻止措施。例如，若 EDR 检测到某些已知恶意模块或不受信任的 DLL 试图加载时，可以直接阻止其加载过程，以避免潜在的攻击。</p>
+<ol start="4">
+<li><strong>行为分析和威胁检测</strong></li>
+</ol>
+<p>许多 EDR 具备行为分析能力，会将进程加载的模块信息与恶意软件行为模型对比。如果进程加载的模块符合恶意行为模式，EDR 会记录并标记该进程为潜在威胁，甚至可以进一步追踪该进程的后续行为。</p>
+<ol start="5">
+<li><strong>记录审计日志</strong></li>
+</ol>
+<p>EDR 还可以使用 <code>PsSetLoadImageNotifyRoutine</code> 来记录系统中所有进程的模块加载情况，以便后续审计和事件响应分析。这些日志信息对于调查入侵活动具有重要价值，帮助分析人员了解攻击者的持久化方式和活动范围。</p>
+<ol start="6">
+<li><strong>检测进程篡改</strong></li>
+</ol>
+<p>一些恶意软件会尝试通过加载恶意模块来修改合法进程的行为，造成持久化攻击。通过监控模块加载活动，EDR 可以检测到这些篡改行为并发出警报，从而增强系统的完整性保护。</p>
+<p>那么我们想要规避这个监控可以找到这个数据结构，修改 <code>PsSetLoadImageNotifyRoutine</code> 注册的回调函数指针。或者让<code>PsSetLoadImageNotifyRoutine</code>返回无效名称，然后伪造内核中加载的模块名称并将其伪装成合法模块。亦或者修改内核变量 <code>PspNotifyEnableMask</code>来完成等等，有很多方法这里不一一列举。</p>
+<p>小记：</p>
+<p><code>PsSetLoadImageNotifyRoutine</code> 在内核内部维护一个列表(数组)，存储着所有注册的图像加载回调函数指针。在正常情况下，当系统加载一个新的映像（如 DLL 或 EXE）时，会遍历这个列表，调用所有注册的回调函数。</p>
+<p>通过定位并直接修改这个数据结构，我们可以：</p>
+<ol>
+<li><strong>修改回调函数指针</strong>：将原有回调函数替换为自定义的函数，从而在图像加载时执行自定义逻辑。(筛选不希望报告的图像加载)</li>
+<li><strong>清空回调函数数组</strong>：将数组内容清空，系统在遍历时找不到任何回调，从而达到关闭所有图像加载回调的效果。</li>
+</ol>
+<p>但是我们在初始访问阶段很难做到这一点，所以我尝试跟随MDSec的脚步去探寻。</p>
+<h2 id="什么玩意儿触发了回调"><a href="#什么玩意儿触发了回调" class="headerlink" title="什么玩意儿触发了回调"></a>什么玩意儿触发了回调</h2><p>我们浅浅的搓两个Demo，一个Dll和一个加载他的EXE。</p>
+<p><img src="/AboutLoadLibrary-01/20241101141742.png" srcset="/img/loading.gif" lazyload alt="20241101141742"></p>
+<p>我们分解<code>LoadLibraryA</code>的调用过程：</p>
+<p><strong>调用 <code>LoadLibraryA</code></strong></p>
+<ul>
+<li><code>LoadLibraryA</code> 接收一个 DLL 文件的名称作为参数，并开始查找并加载该 DLL。</li>
+<li>如果文件名为空，或无法找到指定的 DLL，<code>LoadLibraryA</code> 会返回错误。</li>
+</ul>
+<p><strong>转换为 <code>LoadLibraryExA</code> 调用</strong></p>
+<ul>
+<li><code>LoadLibraryA</code> 实际上是调用 <code>LoadLibraryExA</code> 的简化版本。<code>LoadLibraryExA</code> 函数允许通过传递标志来设置加载选项（如加载方式、位置等）。</li>
+<li><code>LoadLibraryExA</code> 接收 DLL 名称和加载标志，将其转换为宽字符形式，然后调用对应的宽字符版本 <code>LoadLibraryExW</code>。</li>
+</ul>
+<p><strong>调用 <code>LoadLibraryExW</code> 进行宽字符处理</strong></p>
+<ul>
+<li><code>LoadLibraryExW</code> 是 <code>LoadLibraryExA</code> 的宽字符版本，它最终会调用 <code>LdrLoadDll</code>，这是 ntdll.dll 中负责加载 DLL 的底层函数。</li>
+<li>该函数通过 <code>LdrLoadDll</code> 处理具体的 DLL 文件路径，并决定加载的具体位置。</li>
+</ul>
+<p><strong>进入 ntdll.dll 的 <code>LdrLoadDll</code> 函数</strong></p>
+<ul>
+<li><code>LdrLoadDll</code> 是加载 DLL 的核心，它首先检查指定的 DLL 是否已在内存中被加载过，以避免重复加载。</li>
+<li><code>LdrLoadDll</code> 会调用 <code>LdrpLoadDllInternal</code> 来继续加载过程。</li>
+</ul>
+<p><strong>使用 <code>LdrpLoadDllInternal</code> 进行内部加载</strong></p>
+<ul>
+<li><code>LdrpLoadDllInternal</code> 在确保 DLL 需要加载后，会调用 <code>LdrpProcessWork</code>，该函数处理具体的加载任务。</li>
+<li>其中，<code>LdrpProcessWork</code> 会根据传入的 DLL 名称查找文件，处理路径和加载标志等。</li>
+</ul>
+<p><strong>调用 <code>LdrpMapDllFullPath</code> 进行 DLL 映射</strong></p>
+<ul>
+<li><code>LdrpProcessWork</code> 使用 <code>LdrpMapDllFullPath</code> 函数查找 DLL 并进行文件映射。该函数会尝试将 DLL 的路径转换为 NT 路径格式，供后续调用使用。</li>
+<li>如果查找到 DLL 文件，该函数会返回一个 DLL 句柄，准备映射文件。</li>
+</ul>
+<p><strong>调用 <code>LdrpMapDllNtFileName</code> 映射 DLL</strong></p>
+<ul>
+<li><code>LdrpMapDllNtFileName</code> 将 DLL 文件映射到进程地址空间。它会调用 <code>LdrpMapDllWithSectionHandle</code> 将 DLL 的文件内容映射到内存中，以便后续执行。</li>
+<li>在实际映射过程中会调用到 <code>LdrpMinimalMapModule</code>。</li>
+</ul>
+<p><strong>调用 <code>LdrpMinimalMapModule</code> 处理映像文件</strong></p>
+<ul>
+<li><code>LdrpMinimalMapModule</code> 将 DLL 文件的内容映射到内存中，并处理相关的页面映射等。</li>
+<li>该函数会调用 <code>LdrpMapViewOfSection</code>，然后进一步调用底层的 <code>NtMapViewOfSection</code> 系统调用，以将 DLL 文件的内容加载到目标地址空间。</li>
+</ul>
+<p><strong>调用 <code>NtMapViewOfSection</code> 进行最终内存映射</strong></p>
+<ul>
+<li><code>NtMapViewOfSection</code> 是内核态的系统调用函数，通过内存管理服务将 DLL 文件的各个部分映射到合适的内存页。</li>
+<li>这一步完成后，DLL 文件的内容将以只读或读写的方式加载到内存中。</li>
+</ul>
+<p><strong>返回 DLL 句柄</strong></p>
+<ul>
+<li>映射成功后，控制返回到 <code>LdrLoadDll</code> 并最终返回到用户态的 <code>LoadLibraryA</code>。此时 <code>LoadLibraryA</code> 返回一个指向已加载 DLL 的句柄。</li>
+<li>应用程序可以通过此句柄调用 DLL 中的函数。</li>
+</ul>
+<p>也就是说<code>LoadLibraryA</code> 的调用实际上是通过多层封装与系统调用逐层转换和映射实现的。最终通过 <code>NtMapViewOfSection</code> 完成 DLL 文件的加载和内存映射，从而将 DLL 加载到进程的地址空间中，供应用程序调用。</p>
+<p>我们着重分析 <code>LdrpMapDllNtFileName</code> 是因为该函数在模块加载过程中起到关键作用，它负责打开并映射 DLL 文件，将其加载到内存中，而这个过程中会触发 <code>PsSetLoadImageNotifyRoutine</code> 注册的回调函数。</p>
+<p>直接丢进IDA</p>
+<p><img src="/AboutLoadLibrary-01/20241101144536.png" srcset="/img/loading.gif" lazyload alt="20241101144536"></p>
+<p><img src="/AboutLoadLibrary-01/20241101144548.png" srcset="/img/loading.gif" lazyload alt="20241101144536"></p>
+<p><img src="/AboutLoadLibrary-01/20241101144557.png" srcset="/img/loading.gif" lazyload alt="20241101144536"></p>
+<p><code>LdrpMapDllNtFileName(__int64 dllBase, UNICODE_STRING *dllName)</code>的第2个参数<code>dllName</code></p>
+<p>顾名思义傻子都知道是啥意思。然后尝试打开，使用<code>NtOpen</code>，如果成功打开后则检查一下，然后丢给<code>NtCreateSection</code>创建内存映射区段。但是这里我的和MDsec的逆向有些出入，但是并不影响大体。</p>
+<p>我们可以轻松的追踪到最后我们进入了<code>LdrpMapDllWithSectionHandle</code>方法，通过名字也可以才到他的用途吧。不说废话直接跟进去。</p>
+<p><img src="/AboutLoadLibrary-01/20241101150704.png" srcset="/img/loading.gif" lazyload alt="20241101150704"></p>
+<p><img src="/AboutLoadLibrary-01/20241101150717.png" srcset="/img/loading.gif" lazyload alt="20241101150704"></p>
+<p><img src="/AboutLoadLibrary-01/20241101150731.png" srcset="/img/loading.gif" lazyload alt="20241101150704"></p>
+<p>我们顺着LdrpMapDllWithSectionHandle-&gt;LdrpMinimalMapModule-&gt;LdrpMapViewOfSection-&gt;NtMapViewOfSection摸查，截图太累了</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br></pre></td><td class="code"><pre><code class="hljs cpp"><span class="hljs-function">__int64 __fastcall <span class="hljs-title">LdrpMinimalMapModule</span><span class="hljs-params">(__int64 moduleInfo, __int64 sectionHandle)</span> </span>&#123;<br>    _QWORD *moduleBaseAddress; <span class="hljs-comment">// DLL 的基地址</span><br>    __int64 unicodeComparisonResult; <span class="hljs-comment">// 用于字符串比较结果</span><br>    __int64 sectionProtectionFlags; <span class="hljs-comment">// 段保护标志</span><br>    <span class="hljs-type">char</span> isKernel32Dll; <span class="hljs-comment">// 标识是否为 kernel32.dll</span><br>    <span class="hljs-type">int</span> allocationType; <span class="hljs-comment">// 分配类型标志</span><br>    <span class="hljs-keyword">struct</span> <span class="hljs-title class_">_TEB</span> *currentThreadEnvironmentBlock; <span class="hljs-comment">// 当前线程的 TEB（线程环境块）</span><br>    <span class="hljs-type">int</span> allocationTypeFlags; <span class="hljs-comment">// 最终分配类型标志</span><br>    __int64 viewSize; <span class="hljs-comment">// 视图大小</span><br>    <span class="hljs-type">int</span> resultCode; <span class="hljs-comment">// 临时变量，用于存储结果代码</span><br>    __int64 tempValue; <span class="hljs-comment">// 临时值</span><br>    <span class="hljs-type">int</span> finalResult; <span class="hljs-comment">// 最终返回结果</span><br>    __int64 imageBaseAddress; <span class="hljs-comment">// DLL 的基地址</span><br>    __int64 tempResult; <span class="hljs-comment">// 临时结果</span><br>    __int64 imageBaseParameters[<span class="hljs-number">2</span>]; <span class="hljs-comment">// 图像基址参数</span><br>    __int64 userModeAddressRange[<span class="hljs-number">4</span>]; <span class="hljs-comment">// 用户模式地址范围</span><br>    <span class="hljs-type">void</span> *originalUserPointer; <span class="hljs-comment">// 用于恢复用户指针</span><br>    __int64 viewBaseAddress; <span class="hljs-comment">// 视图基地址</span><br>    __int64 prevPrivilegeState; <span class="hljs-comment">// 用于存储特权状态</span><br><br>    viewBaseAddress = sectionHandle;<br>    moduleBaseAddress = *(moduleInfo + <span class="hljs-number">56</span>); <span class="hljs-comment">// 获取模块基地址</span><br><br>    <span class="hljs-comment">// 日志记录模块加载信息</span><br>    <span class="hljs-built_in">LdrpLogInternal</span>(<span class="hljs-string">&quot;minkernel\\ntdll\\ldrmap.c&quot;</span>, <span class="hljs-number">700</span>, <span class="hljs-string">&quot;LdrpMinimalMapModule&quot;</span>, <span class="hljs-number">3</span>, <span class="hljs-string">&quot;DLL name: %wZ\n&quot;</span>, moduleBaseAddress + <span class="hljs-number">9</span>);<br><br>    <span class="hljs-comment">// 检查模块是否为 kernel32.dll</span><br>    <span class="hljs-built_in">LOBYTE</span>(unicodeComparisonResult) = <span class="hljs-number">1</span>;<br>    <span class="hljs-keyword">if</span> (!<span class="hljs-built_in">RtlEqualUnicodeString</span>(moduleBaseAddress + <span class="hljs-number">11</span>, &amp;LdrpKernel32DllName, unicodeComparisonResult)<br>        || (isKernel32Dll = <span class="hljs-number">1</span>, (*(LdrpAppHeaders + <span class="hljs-number">22</span>) &amp; <span class="hljs-number">0x20</span>) == <span class="hljs-number">0</span>)) &#123;<br>        isKernel32Dll = <span class="hljs-number">0</span>; <span class="hljs-comment">// 如果不是 kernel32.dll，设置标志位为 0</span><br>    &#125;<br><br>    prevPrivilegeState = <span class="hljs-number">0</span>i64;<br>    allocationType = <span class="hljs-number">0x800000</span>; <span class="hljs-comment">// 默认分配标志</span><br><br>    <span class="hljs-comment">// 如果不是 kernel32.dll，检查是否需要使用大页（Large Pages）</span><br>    <span class="hljs-keyword">if</span> (!isKernel32Dll) &#123;<br>        <span class="hljs-keyword">if</span> (LdrpLargePageDllKeyHandle) &#123;<br>            imageBaseAddress = moduleBaseAddress[<span class="hljs-number">12</span>];<br>            <span class="hljs-built_in">LODWORD</span>(originalUserPointer) = <span class="hljs-number">0</span>;<br>            <span class="hljs-built_in">RtlQueryImageFileKeyOption</span>(LdrpLargePageDllKeyHandle, imageBaseAddress, <span class="hljs-number">4</span>i64, &amp;originalUserPointer, <span class="hljs-number">4</span>, <span class="hljs-number">0</span>i64);<br>            <span class="hljs-keyword">if</span> (originalUserPointer) &#123;<br>                <span class="hljs-comment">// 获取锁内存特权以便使用大页</span><br>                <span class="hljs-keyword">if</span> (<span class="hljs-built_in">RtlAcquirePrivilege</span>(&amp;LdrpLockMemoryPrivilege, <span class="hljs-number">1</span>i64, <span class="hljs-number">0</span>i64, &amp;prevPrivilegeState) &gt;= <span class="hljs-number">0</span>)<br>                    allocationType = <span class="hljs-number">0x20000000</span>;<br>            &#125;<br>        &#125;<br>    &#125;<br><br>    currentThreadEnvironmentBlock = <span class="hljs-built_in">NtCurrentTeb</span>(); <span class="hljs-comment">// 获取当前线程的 TEB</span><br>    *(moduleInfo + <span class="hljs-number">168</span>) = <span class="hljs-number">0</span>i64;<br>    originalUserPointer = currentThreadEnvironmentBlock-&gt;NtTib.ArbitraryUserPointer; <span class="hljs-comment">// 保存当前用户指针</span><br>    currentThreadEnvironmentBlock-&gt;NtTib.ArbitraryUserPointer = moduleBaseAddress[<span class="hljs-number">10</span>]; <span class="hljs-comment">// 设置 DLL 的用户指针</span><br><br>    allocationTypeFlags = allocationType | <span class="hljs-number">0x40000</span>; <span class="hljs-comment">// 设置分配标志</span><br>    viewSize = (*(moduleInfo + <span class="hljs-number">32</span>) &amp; <span class="hljs-number">0x800000</span>) != <span class="hljs-number">0</span> ? <span class="hljs-number">2</span> : <span class="hljs-number">128</span>; <span class="hljs-comment">// 根据加载标志设置视图大小</span><br><br>    <span class="hljs-keyword">if</span> ((*(moduleInfo + <span class="hljs-number">32</span>) &amp; <span class="hljs-number">0x800000</span>) == <span class="hljs-number">0</span>) <span class="hljs-comment">// 如果没有指定特殊加载标志，使用默认分配类型</span><br>        allocationTypeFlags = allocationType;<br><br>    <span class="hljs-comment">// 如果 DLL 设置了特殊用户模式加载标志，执行扩展映射逻辑</span><br>    <span class="hljs-keyword">if</span> ((*(moduleInfo + <span class="hljs-number">32</span>) &amp; <span class="hljs-number">0x800</span>) != <span class="hljs-number">0</span>) &#123;<br>        userModeAddressRange[<span class="hljs-number">1</span>] = LdrpMaximumUserModeAddress;<br>        userModeAddressRange[<span class="hljs-number">0</span>] = <span class="hljs-number">0</span>i64;<br>        imageBaseParameters[<span class="hljs-number">1</span>] = userModeAddressRange;<br>        userModeAddressRange[<span class="hljs-number">2</span>] = <span class="hljs-number">0</span>i64;<br>        imageBaseParameters[<span class="hljs-number">0</span>] = <span class="hljs-number">1</span>i64;<br>        resultCode = <span class="hljs-built_in">ZwMapViewOfSectionEx</span>(<br>            viewBaseAddress,<br>            <span class="hljs-number">-1</span>i64,<br>            moduleBaseAddress + <span class="hljs-number">6</span>,<br>            <span class="hljs-number">0</span>i64,<br>            moduleInfo + <span class="hljs-number">168</span>,<br>            allocationTypeFlags,<br>            viewSize,<br>            imageBaseParameters,<br>            <span class="hljs-number">1</span>);<br>    &#125; <span class="hljs-keyword">else</span> &#123;<br>        <span class="hljs-comment">// 使用常规方法映射 DLL</span><br>        resultCode = <span class="hljs-built_in">LdrpMapViewOfSection</span>(<br>            viewBaseAddress,<br>            viewSize,<br>            (moduleBaseAddress + <span class="hljs-number">6</span>),<br>            sectionProtectionFlags,<br>            moduleInfo + <span class="hljs-number">168</span>,<br>            allocationTypeFlags,<br>            viewSize,<br>            (moduleBaseAddress + <span class="hljs-number">9</span>));<br>    &#125;<br><br>    finalResult = resultCode;<br>    currentThreadEnvironmentBlock-&gt;NtTib.ArbitraryUserPointer = originalUserPointer; <span class="hljs-comment">// 恢复用户指针</span><br><br>    <span class="hljs-comment">// 如果启用了大页分配，释放特权</span><br>    <span class="hljs-keyword">if</span> (allocationTypeFlags == <span class="hljs-number">0x20000000</span>)<br>        <span class="hljs-built_in">RtlReleasePrivilege</span>(prevPrivilegeState);<br><br>    <span class="hljs-comment">// 检查结果代码，处理不同加载情况</span><br>    <span class="hljs-keyword">switch</span> (finalResult) &#123;<br>        <span class="hljs-keyword">case</span> <span class="hljs-number">1073741827</span>: <span class="hljs-comment">// 内存不足</span><br>            <span class="hljs-keyword">goto</span> LABEL_21;<br>        <span class="hljs-keyword">case</span> <span class="hljs-number">1073741838</span>: <span class="hljs-comment">// 机器架构不匹配</span><br>            finalResult = <span class="hljs-built_in">LdrpProcessMachineMismatch</span>(moduleInfo);<br>            <span class="hljs-keyword">break</span>;<br>        <span class="hljs-keyword">case</span> <span class="hljs-number">1073741878</span>: <span class="hljs-comment">// 部分失败，执行重试逻辑</span><br>        LABEL_21:<br>            <span class="hljs-keyword">if</span> (!*(moduleInfo + <span class="hljs-number">176</span>) &amp;&amp; LdrpMapAndSnapWork) &#123;<br>                <span class="hljs-built_in">LOBYTE</span>(tempValue) = <span class="hljs-number">1</span>;<br>                <span class="hljs-keyword">if</span> (<span class="hljs-built_in">LdrpCheckForRetryLoading</span>(moduleInfo, tempValue)) &#123;<br>                    finalResult = <span class="hljs-number">-1073741267</span>; <span class="hljs-comment">// 加载失败</span><br>                &#125; <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> (isKernel32Dll) &#123;<br>                    finalResult = <span class="hljs-number">-1073741800</span>; <span class="hljs-comment">// kernel32.dll 特殊错误码</span><br>                &#125;<br>            &#125;<br>            <span class="hljs-keyword">break</span>;<br>    &#125;<br><br>    <span class="hljs-comment">// 如果 DLL 加载失败，执行解映射</span><br>    <span class="hljs-keyword">if</span> (moduleBaseAddress[<span class="hljs-number">6</span>] &amp;&amp; (finalResult &lt; <span class="hljs-number">0</span> || finalResult == <span class="hljs-number">1073741838</span>)) &#123;<br>        <span class="hljs-built_in">NtUnmapViewOfSection</span>(<span class="hljs-number">-1</span>i64); <span class="hljs-comment">// 解除映射</span><br>        moduleBaseAddress[<span class="hljs-number">6</span>] = <span class="hljs-number">0</span>i64;<br>    &#125;<br><br>    <span class="hljs-comment">// 日志记录加载状态</span><br>    <span class="hljs-built_in">LODWORD</span>(tempResult) = finalResult;<br>    <span class="hljs-built_in">LdrpLogInternal</span>(<span class="hljs-string">&quot;minkernel\\ntdll\\ldrmap.c&quot;</span>, <span class="hljs-number">909</span>, <span class="hljs-string">&quot;LdrpMinimalMapModule&quot;</span>, <span class="hljs-number">4</span>, <span class="hljs-string">&quot;Status: 0x%08lx\n&quot;</span>, tempResult);<br><br>    <span class="hljs-keyword">return</span> finalResult; <span class="hljs-comment">// 返回最终状态</span><br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>我们直接摸进 <code>LdrpMapViewOfSection</code></p>
+<figure class="highlight sqf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs sqf"><span class="hljs-variable">__int64</span> <span class="hljs-variable">__fastcall</span> LdrpMapViewOfSection(<br>        <span class="hljs-variable">__int64</span> lpBaseAddress,           <span class="hljs-comment">// 基址</span><br>        <span class="hljs-variable">__int64</span> hFile,                   <span class="hljs-comment">// 文件句柄</span><br>        <span class="hljs-variable">__int64</span> lpFileOffset,            <span class="hljs-comment">// 文件偏移量</span><br>        <span class="hljs-variable">__int64</span> dwNumberOfBytesToMap,    <span class="hljs-comment">// 要映射的字节数</span><br>        <span class="hljs-variable">__int64</span> flMapType,               <span class="hljs-comment">// 映射类型</span><br>        int dwMapFlags,                  <span class="hljs-comment">// 映射标志</span><br>        int ImageSectionName,            <span class="hljs-comment">// 图像段名称</span><br>        <span class="hljs-variable">__int64</span> AllocationAttributes)    <span class="hljs-comment">// 分配属性</span><br>&#123;<br>    <span class="hljs-variable">__int64</span> v11[<span class="hljs-number">3</span>]; <span class="hljs-comment">// 临时变量，用于存储映射属性</span><br><br>    <span class="hljs-comment">// 检查分配属性是否选择退出 HPAT 分配优化</span><br>    <span class="hljs-keyword">if</span> (!LdrpHpatAllocationOptOut(AllocationAttributes))<br>        <span class="hljs-comment">// 如果未选择退出，直接调用 ZwMapViewOfSection 执行标准映射</span><br>        return ZwMapViewOfSection(lpBaseAddress, -<span class="hljs-number">1</span>i64, lpFileOffset);<br><br>    <span class="hljs-comment">// 如果选择退出，设置 HPAT 特定的分配标志和属性</span><br>    v11[<span class="hljs-number">0</span>] = <span class="hljs-number">5</span>i64;      <span class="hljs-comment">// 分配属性，标志位</span><br>    v11[<span class="hljs-number">1</span>] = <span class="hljs-number">0</span>x80i64;   <span class="hljs-comment">// 内存保护标志，指定为可执行</span><br><br>    <span class="hljs-comment">// 使用扩展映射功能调用 ZwMapViewOfSectionEx，传入额外的分配选项</span><br>    return ZwMapViewOfSectionEx(lpBaseAddress, -<span class="hljs-number">1</span>i64, lpFileOffset, <span class="hljs-number">0</span>i64, flMapType, dwMapFlags, ImageSectionName, v11, <span class="hljs-number">1</span>);<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>到这里已经是我们所能触达的尽头。</p>
+<p>根据逆向整个加载过程，我们可以发现两个事情发生了一个是回调的触发一个是ETW的日志记录，</p>
+<p>当 <code>LdrpMapViewOfSection</code> 或其他加载函数调用 <code>ZwMapViewOfSection</code> 或 <code>ZwMapViewOfSectionEx</code> 来将文件映射到内存时，Windows 内核会触发 <code>PsSetLoadImageNotifyRoutine</code> 注册的图像加载回调。</p>
+<h2 id="怎么绕过"><a href="#怎么绕过" class="headerlink" title="怎么绕过?"></a>怎么绕过?</h2><p>回到正题，MDSec的研究员产生了灵魂发问，这玩意儿怎么绕过呢？</p>
+<p>首先肯定是自己去实现一个完整加载方法去加载，但是这条路比较坎坷。整体实现经历了7个过程：</p>
+<ul>
+<li>确保要加载的数据是有效的 PE</li>
+<li>将标题和部分复制到内存中，设置正确的内存权限</li>
+<li>对图像库进行重新定位</li>
+<li>解析两个导入表</li>
+<li>执行 TLS 回调</li>
+<li>注册异常处理程序</li>
+<li>调用 DLL 入口点 ( <code>DllMain</code>)</li>
+</ul>
+<p>有一个很知名的开源项目 DarkLoadlibrary：<a target="_blank" rel="noopener" href="https://github.com/bats3c/DarkLoadLibrary">https://github.com/bats3c/DarkLoadLibrary</a> </p>
+<p>这里不重复造轮子，Havoc的作者Cracked5pider也实现过一个类似的项目<br><a target="_blank" rel="noopener" href="https://github.com/Cracked5pider/LdrLibraryEx">https://github.com/Cracked5pider/LdrLibraryEx</a></p>
+<p>需要注意的一点是为了避免Nt&#x2F;ZwCreateSection，我们映射的时候使用NtAllocateVirtualMemory和VirtualAlloc</p>
+<p>但是这个功能移植到我们的不管是Loader还是Implant中都过于复杂和臃肿，我们不妨先看一下目前有哪些常见的规则是针对于此的去寻找更好的解决方法。</p>
+<p>PS.</p>
+<p>关于DarkLoadLibrary我个人是不推荐的，DarkLoadLibrary本身是为了取代sRDI，但是他们都使用了近乎相同的办法来解析PEB，然后将DLL映射到内存并调用导出函数，相比较于DarkLoadLibrary我觉得sRDI更加成熟可靠，并且DarkLoadLibrary会产生大量的RX属性的私有内存这是非常可疑的。虽然他在对抗图像加载上的想法很棒~，但是我并不建议使用它去替代LoadLibrary。并且一个正常的程序如果加载的合法dll过少（在安全产品的眼中），这会显得非常突兀不是么。</p>
+<h2 id="破壳"><a href="#破壳" class="headerlink" title="破壳"></a>破壳</h2><h3 id="如何评判恶意的图像加载事件"><a href="#如何评判恶意的图像加载事件" class="headerlink" title="如何评判恶意的图像加载事件"></a>如何评判恶意的图像加载事件</h3><p>来自Elastic的一个检测规则</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br><span class="line">169</span><br><span class="line">170</span><br><span class="line">171</span><br><span class="line">172</span><br><span class="line">173</span><br><span class="line">174</span><br><span class="line">175</span><br><span class="line">176</span><br><span class="line">177</span><br><span class="line">178</span><br><span class="line">179</span><br><span class="line">180</span><br><span class="line">181</span><br><span class="line">182</span><br><span class="line">183</span><br><span class="line">184</span><br><span class="line">185</span><br><span class="line">186</span><br><span class="line">187</span><br><span class="line">188</span><br><span class="line">189</span><br><span class="line">190</span><br><span class="line">191</span><br><span class="line">192</span><br><span class="line">193</span><br><span class="line">194</span><br><span class="line">195</span><br><span class="line">196</span><br><span class="line">197</span><br><span class="line">198</span><br><span class="line">199</span><br><span class="line">200</span><br><span class="line">201</span><br><span class="line">202</span><br><span class="line">203</span><br><span class="line">204</span><br><span class="line">205</span><br><span class="line">206</span><br><span class="line">207</span><br><span class="line">208</span><br><span class="line">209</span><br><span class="line">210</span><br><span class="line">211</span><br><span class="line">212</span><br><span class="line">213</span><br><span class="line">214</span><br><span class="line">215</span><br><span class="line">216</span><br><span class="line">217</span><br><span class="line">218</span><br><span class="line">219</span><br><span class="line">220</span><br><span class="line">221</span><br><span class="line">222</span><br><span class="line">223</span><br><span class="line">224</span><br><span class="line">225</span><br><span class="line">226</span><br><span class="line">227</span><br><span class="line">228</span><br><span class="line">229</span><br><span class="line">230</span><br><span class="line">231</span><br><span class="line">232</span><br><span class="line">233</span><br><span class="line">234</span><br><span class="line">235</span><br><span class="line">236</span><br><span class="line">237</span><br><span class="line">238</span><br><span class="line">239</span><br><span class="line">240</span><br><span class="line">241</span><br><span class="line">242</span><br><span class="line">243</span><br><span class="line">244</span><br><span class="line">245</span><br><span class="line">246</span><br><span class="line">247</span><br><span class="line">248</span><br><span class="line">249</span><br><span class="line">250</span><br><span class="line">251</span><br><span class="line">252</span><br><span class="line">253</span><br><span class="line">254</span><br><span class="line">255</span><br><span class="line">256</span><br><span class="line">257</span><br><span class="line">258</span><br></pre></td><td class="code"><pre><code class="hljs swift">[rule]<br>description <span class="hljs-operator">=</span> <span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">Identifies the load of a Windows network module by a process where the creating thread&#x27;s stack contains frames pointing</span><br><span class="hljs-string">outside any known executable image. This may indicate evasion via process injection.</span><br><span class="hljs-string">&quot;&quot;&quot;</span><br>id <span class="hljs-operator">=</span> <span class="hljs-string">&quot;aa265fbd-4c57-46ff-9e89-0635101cc50d&quot;</span><br>license <span class="hljs-operator">=</span> <span class="hljs-string">&quot;Elastic License v2&quot;</span><br>name <span class="hljs-operator">=</span> <span class="hljs-string">&quot;Network Module Loaded from Suspicious Unbacked Memory&quot;</span><br>os_list <span class="hljs-operator">=</span> [<span class="hljs-string">&quot;windows&quot;</span>]<br>reference <span class="hljs-operator">=</span> [<br>    <span class="hljs-string">&quot;https://www.elastic.co/security-labs/pikabot-i-choose-you&quot;</span>,<br>    <span class="hljs-string">&quot;https://www.elastic.co/security-labs/spring-cleaning-with-latrodectus&quot;</span>,<br>    <span class="hljs-string">&quot;https://www.elastic.co/security-labs/upping-the-ante-detecting-in-memory-threats-with-kernel-call-stacks&quot;</span>,<br>]<br>version <span class="hljs-operator">=</span> <span class="hljs-string">&quot;1.0.41&quot;</span><br><br>query <span class="hljs-operator">=</span> &#x27;&#x27;&#x27;<br>sequence by process.entity_id<br> [process <span class="hljs-keyword">where</span> event.action <span class="hljs-operator">==</span> <span class="hljs-string">&quot;start&quot;</span> and process.parent.executable <span class="hljs-operator">!=</span> null and<br><br>  not process.<span class="hljs-type">Ext</span>.token.integrity_level_name <span class="hljs-operator">==</span> <span class="hljs-string">&quot;low&quot;</span> and<br><br>  not user.id : (<span class="hljs-string">&quot;S-1-5-19&quot;</span>, <span class="hljs-string">&quot;S-1-5-20&quot;</span>) and<br><br>  not (process.executable : (<span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Program Files (x86)<span class="hljs-subst">\\</span>*&quot;</span>, <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Program Files<span class="hljs-subst">\\</span>*&quot;</span>, <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>ProgramData<span class="hljs-subst">\\</span>*&quot;</span>, <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Users<span class="hljs-subst">\\</span>*<span class="hljs-subst">\\</span>AppData<span class="hljs-subst">\\</span>*&quot;</span>) and<br>       process.code_signature.trusted <span class="hljs-operator">==</span> <span class="hljs-literal">true</span>) and<br>       <br>  not (process.executable : (<span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Program Files (x86)<span class="hljs-subst">\\</span>*&quot;</span>, <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Program Files<span class="hljs-subst">\\</span>*&quot;</span>) and process.<span class="hljs-type">Ext</span>.relative_file_creation_time <span class="hljs-operator">&gt;=</span> <span class="hljs-number">80000</span>) and <br>  <br>  not process.executable : (<span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>Microsoft.NET<span class="hljs-subst">\\</span>Framework*<span class="hljs-subst">\\</span>NGenTask.exe&quot;</span>, <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>Microsoft.NET<span class="hljs-subst">\\</span>Framework*<span class="hljs-subst">\\</span>ngen.exe&quot;</span>) and<br><br>  not (process.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>Microsoft.NET<span class="hljs-subst">\\</span>Framework*<span class="hljs-subst">\\</span>mscorsvw.exe&quot;</span> and<br>       process.parent.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>Microsoft.NET<span class="hljs-subst">\\</span>Framework*<span class="hljs-subst">\\</span>ngen.exe&quot;</span>) and <br><br>  not (process.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>WINDOWS<span class="hljs-subst">\\</span>SysWOW64<span class="hljs-subst">\\</span>DWRCS.EXE&quot;</span> and<br>       process.parent.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>WINDOWS<span class="hljs-subst">\\</span>SysWOW64<span class="hljs-subst">\\</span>DWRCS.EXE&quot;</span> and process.parent.args : <span class="hljs-string">&quot;-service&quot;</span>) and <br><br>  not (process.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>System32<span class="hljs-subst">\\</span>LogonUI.exe&quot;</span> and <br>       process.parent.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>System32<span class="hljs-subst">\\</span>winlogon.exe&quot;</span>) and <br><br>  not (process.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>SysWOW64<span class="hljs-subst">\\</span>icacls.exe&quot;</span> and <br>       process.args : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Program Files<span class="hljs-subst">\\</span>Tenable<span class="hljs-subst">\\</span>Nessus Agent<span class="hljs-subst">\\</span>*&quot;</span> and <br>       process.parent.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>SysWOW64<span class="hljs-subst">\\</span>msiexec.exe&quot;</span>) and <br><br>  not (process.name : <span class="hljs-string">&quot;rundll32.exe&quot;</span> and<br>       process.command_line : <span class="hljs-string">&quot;*zzzzInvokeManagedCustomActionOutOfProc*&quot;</span> and<br>       process.parent.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>sys*<span class="hljs-subst">\\</span>msiexec.exe&quot;</span>) and<br><br>  not (process.code_signature.subject_name :<br>                    (<span class="hljs-string">&quot;Mozilla Corporation&quot;</span>, <span class="hljs-string">&quot;Commvault Systems, Inc.&quot;</span>, <span class="hljs-string">&quot;Google LLC&quot;</span>, <span class="hljs-string">&quot;YANDEX LLC&quot;</span>, <span class="hljs-string">&quot;ConnectWise, Inc.&quot;</span>,<br>                     <span class="hljs-string">&quot;Brave Software, Inc.&quot;</span>, <span class="hljs-string">&quot;Opera Norway AS&quot;</span>, <span class="hljs-string">&quot;GitHub, Inc.&quot;</span>, <span class="hljs-string">&quot;Stefan Ries&quot;</span>, <span class="hljs-string">&quot;JetBrains s.r.o.&quot;</span>,<br>                     <span class="hljs-string">&quot;Intel(R) Rapid Storage Technology&quot;</span>, <span class="hljs-string">&quot;Waves Inc&quot;</span>, <span class="hljs-string">&quot;Dell Inc&quot;</span>, <span class="hljs-string">&quot;Lenovo&quot;</span>, <span class="hljs-string">&quot;DameWare Development, LLC.&quot;</span>,<br>                     <span class="hljs-string">&quot;Essential Objects, Inc*&quot;</span>, <span class="hljs-string">&quot;HP Inc.&quot;</span>, <span class="hljs-string">&quot;Aina Maximit Oy&quot;</span>, <span class="hljs-string">&quot;Logitech Inc&quot;</span>, <span class="hljs-string">&quot;N-ABLE TECHNOLOGIES LTD&quot;</span>, <br>                     <span class="hljs-string">&quot;Cognizant TriZetto Software Group, Inc.&quot;</span>, <span class="hljs-string">&quot;win.acme.simple@gmail.com&quot;</span>, <span class="hljs-string">&quot;Crownalytics, LLC&quot;</span>, <br>                     <span class="hljs-string">&quot;Kodak Alaris Inc.&quot;</span>, <span class="hljs-string">&quot;JAM Software GmbH&quot;</span>, <span class="hljs-string">&quot;UBISOFT ENTERTAINMENT INC.&quot;</span>, <span class="hljs-string">&quot;DASSAULT SYSTEMES SE&quot;</span>, <br>                     <span class="hljs-string">&quot;Link Data Security A/S&quot;</span>, <span class="hljs-string">&quot;Western Digital Technologies, Inc.&quot;</span>, <span class="hljs-string">&quot;Rockstar Games, Inc.&quot;</span>,<br>                     <span class="hljs-string">&quot;SEMPERIS INC.&quot;</span>, <span class="hljs-string">&quot;Micro-Star International CO., LTD.&quot;</span>, <span class="hljs-string">&quot;Kaseya Holdings Inc&quot;</span>, <span class="hljs-string">&quot;KASEYA US LLC&quot;</span>,<br>                     <span class="hljs-string">&quot;Intel(R) Software Development Products&quot;</span>, <span class="hljs-string">&quot;Commvault Systems, Inc.&quot;</span>, <span class="hljs-string">&quot;AAC Infotray AG&quot;</span>,<br>                     <span class="hljs-string">&quot;CORE.AI SCIENTIFIC TECHNOLOGIES PRIVATE LIMITED&quot;</span>, <span class="hljs-string">&quot;ClaimMaster Software LLC&quot;</span>, <span class="hljs-string">&quot;Cellebrite DI LTD&quot;</span>) and<br>       process.code_signature.trusted <span class="hljs-operator">==</span> <span class="hljs-literal">true</span>) and<br><br>  not (process.pe.original_file_name : (<span class="hljs-string">&quot;msedge.exe&quot;</span>, <span class="hljs-string">&quot;msedgewebview2.exe&quot;</span>) and<br>       process.code_signature.subject_name : <span class="hljs-string">&quot;Microsoft *&quot;</span> and process.code_signature.trusted <span class="hljs-operator">==</span> <span class="hljs-literal">true</span>) and<br><br>  not (process.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>System32<span class="hljs-subst">\\</span>Essentials<span class="hljs-subst">\\</span>SharedServiceHost.exe&quot;</span> and<br>       process.parent.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>System32<span class="hljs-subst">\\</span>services.exe&quot;</span>) and<br><br>  not (process.name : <span class="hljs-string">&quot;powershell.exe&quot;</span> and<br>       process.parent.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Program Files (x86)<span class="hljs-subst">\\</span>Lenovo<span class="hljs-subst">\\</span>VantageService<span class="hljs-subst">\\</span>*<span class="hljs-subst">\\</span>LenovoVantage-(LenovoSystemUpdateAddin).exe&quot;</span>) and<br><br>  not process.hash.sha256 :<br>                   (<span class="hljs-string">&quot;35542bc04fbfa2e3ef68837640e0459c6f99729c0c73578c08ab351cdf030696&quot;</span>,<br>                    <span class="hljs-string">&quot;1005dcfddfbde91cc967ecc6d778c81cb4f7bede03121a3e6e0d9bae12a033e0&quot;</span>,<br>                    <span class="hljs-string">&quot;53cec44e4fc9a3477d264c5edc9e376af8fcca20853faa289387f5bd7eaae05f&quot;</span>,<br>                    <span class="hljs-string">&quot;49113f4cd7bbf3343a43b13edd745008c4f41da1d80c9f89dc90a4b0bb39b8f8&quot;</span>,<br>                    <span class="hljs-string">&quot;0ab8a14e7fd42818608cc0916fc26a12b2ae6b976c97310dc86011713e455d2d&quot;</span>,<br>                    <span class="hljs-string">&quot;afa3dc1ecd4e15a869dc57a280aee930fc0bab1cd49e17afd3944ae4ad1fc91f&quot;</span>,<br>                    <span class="hljs-string">&quot;18b177280b0e0e05aa0e26807f34634c3384ae4f5901f41ff5bb0a720ea5c106&quot;</span>,<br>                    <span class="hljs-string">&quot;4f1528318085f6117734a27f34a317a83b096d55532000f81ed67b1bb10632fa&quot;</span>,<br>                    <span class="hljs-string">&quot;35f210c1f941f917b81c2516bee9de8f0495baca42095685e9b0b76f67250dc9&quot;</span>,<br>                    <span class="hljs-string">&quot;edef301528767963f460bf7fe497ca3b5c648627a2d13abe74d5544578b56bd4&quot;</span>,<br>                    <span class="hljs-string">&quot;f856a3c582ca689bdea3e784ef6a0db37011bd5ebb31d7c79d0328ebfcf6d8a4&quot;</span>,<br>                    <span class="hljs-string">&quot;fe62ba0a61191a9b54aab7ba3221479c451b042fa30a08957cacff84ddfe094b&quot;</span>,<br>                    <span class="hljs-string">&quot;183cd12fbdd93aa785d3793a8872c4a9730dd154f6482c39f94552e556a7b4e9&quot;</span>,<br>                    <span class="hljs-string">&quot;ed6c844c72fccd7e7799d448f5e74df368cafd2631858573e6e29110c213ac79&quot;</span>,<br>                    <span class="hljs-string">&quot;43a84e01b5ddecf0b6297277d53c72025a73b00b9f0073933a700695a240b5e8&quot;</span>,<br>                    <span class="hljs-string">&quot;f4cb2a001dcee0577046c56df5adfe989bc875c29ecfe27c9569849a9a6f0671&quot;</span>,<br>                    <span class="hljs-string">&quot;ed3730a3436454022e8cf1a27569babef8c9c348ea875f1df80cba9b743365c9&quot;</span>,<br>                    <span class="hljs-string">&quot;51346e95656164783ae4de9d6b202f28be87358eb0e056d2d7cdd12b502d30e7&quot;</span>,<br>                    <span class="hljs-string">&quot;889cb8827a400984bea2e0561a1efbf9d18044e879974da8baa750a0c63748c6&quot;</span>,<br>                    <span class="hljs-string">&quot;96dcdb449ab48b21b6efd33afc59ae163dea5fc597ffaf5dd7030b20d2624467&quot;</span>, <br>                    <span class="hljs-string">&quot;43714f0fc5cea25a6ee936fd36a83f86a45f61447c16c8e9255ef317089ce39c&quot;</span>, <br>                    <span class="hljs-string">&quot;52a5036d1578a6b899fb5d14fd3ab12af463e94ac791d1dddb22b7e8cc1f4bd7&quot;</span>, <br>                    <span class="hljs-string">&quot;f5f15ab19171dbcb58e757cd6446be41e04adf00797d712b07e544066ecd3c67&quot;</span>, <br>                    <span class="hljs-string">&quot;49b95a804337ee7e12092cc7a13c2eb6c3acb33f9bbaac8e820b9184063642f2&quot;</span>, <br>                    <span class="hljs-string">&quot;4c974212f5fc3720d58a8df6c2b9587b85949edc676f9f82921c04f067c261f1&quot;</span>, <br>                    <span class="hljs-string">&quot;ed3730a3436454022e8cf1a27569babef8c9c348ea875f1df80cba9b743365c9&quot;</span>,<br>                    <span class="hljs-string">&quot;121a4e78abe13c92a7ff91d2e91bc98173724072cc891ecbbc10765e8d5bd024&quot;</span>, <br>                    <span class="hljs-string">&quot;54e55d6da825d709cf495eb18be10d8cbb92ac1904c1359999d53d3fa42161e2&quot;</span>,<br>                    <span class="hljs-string">&quot;07e79814fde31ff5968d5c0448014d931cd3a2e59b2ac841bc53a155c333a1b9&quot;</span>,<br>                    <span class="hljs-string">&quot;afcee50eace500b9b2c3dc4faab371fd040d769ba3a5197ef3a8762fe5457337&quot;</span>,<br>                    <span class="hljs-string">&quot;e7883c7d57f5cfe7d1649ab138f62f5042f7acda8ed3c8664c9335c3ddba85c4&quot;</span>,<br>                    <span class="hljs-string">&quot;8982729121fa3b3e6c283437f5832916a5a3611374ac848368c6edaae5086257&quot;</span>,<br>                    <span class="hljs-string">&quot;63f2a4be0dfbaf2b9740aa5c2320d0290451d6d5581cc6f8e183ced9ea796d95&quot;</span>) and<br><br>  not (process.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>SysWOW64<span class="hljs-subst">\\</span>dllhost.exe&quot;</span> and process.parent.name : <span class="hljs-string">&quot;svchost.exe&quot;</span> and<br>       process.<span class="hljs-type">Ext</span>.effective_parent.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Program Files (x86)<span class="hljs-subst">\\</span>Skillbrains<span class="hljs-subst">\\</span>lightshot<span class="hljs-subst">\\</span>*<span class="hljs-subst">\\</span>Lightshot.exe&quot;</span>) and<br><br>  not (process.executable : (<span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>SysWOW64<span class="hljs-subst">\\</span>DWRCST.EXE&quot;</span>, <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>SysWOW64<span class="hljs-subst">\\</span>DWRCS.EXE&quot;</span>) and<br>       process.parent.executable : (<span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>WINDOWS<span class="hljs-subst">\\</span>SysWOW64<span class="hljs-subst">\\</span>runonce.exe&quot;</span>, <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>SysWOW64<span class="hljs-subst">\\</span>DWRCST.EXE&quot;</span>, <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>SysWOW64<span class="hljs-subst">\\</span>DWRCS.EXE&quot;</span>)) and<br><br>  not (process.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>system32<span class="hljs-subst">\\</span>winsat.exe&quot;</span> and<br>       process.parent.executable : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>system32<span class="hljs-subst">\\</span>rundll32.exe&quot;</span> and<br>       process.parent.args : <span class="hljs-string">&quot;sysmain.dll,PfSvWsSwapAssessmentTask&quot;</span>) and<br><br>  not (process.executable :  <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>System32<span class="hljs-subst">\\</span>inetsrv<span class="hljs-subst">\\</span>w3wp.exe&quot;</span> and<br>       process.parent.executable : (<span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>System32<span class="hljs-subst">\\</span>inetsrv<span class="hljs-subst">\\</span>w3wp.exe&quot;</span>, <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>System32<span class="hljs-subst">\\</span>svchost.exe&quot;</span>)) and<br><br>  not (process.name : <span class="hljs-string">&quot;rundll32.exe&quot;</span> and process.args : <span class="hljs-string">&quot;--no-sandbox&quot;</span> and<br>        _arraysearch(process.parent.thread.<span class="hljs-type">Ext</span>.call_stack, <span class="hljs-variable">$entry</span>,<br>                     <span class="hljs-variable">$entry</span>.symbol_info : <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Windows<span class="hljs-subst">\\</span>assembly<span class="hljs-subst">\\</span>NativeImages_*<span class="hljs-subst">\\</span>EO.Base<span class="hljs-subst">\\</span>*<span class="hljs-subst">\\</span>EO.Base.ni.dll*&quot;</span>)) and<br><br>  not (user.id : <span class="hljs-string">&quot;S-1-5-18&quot;</span> and<br>       process.parent.executable : (<span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>Program Files (x86)<span class="hljs-subst">\\</span>Advanced Monitoring Agent<span class="hljs-subst">\\</span>featureres<span class="hljs-subst">\\</span>PMESetup.exe&quot;</span>,<br>                                    <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>PROGRA~2<span class="hljs-subst">\\</span>ADVANC~1<span class="hljs-subst">\\</span>featureres<span class="hljs-subst">\\</span>PMESetup.exe&quot;</span>,<br>                                    <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>PROGRA~2<span class="hljs-subst">\\</span>ADVANC~1<span class="hljs-subst">\\</span>downloads<span class="hljs-subst">\\</span>NetworkManagementInstall.exe&quot;</span>,<br>                                    <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>PROGRA~2<span class="hljs-subst">\\</span>ADVANC~1<span class="hljs-subst">\\</span>staging<span class="hljs-subst">\\</span>_new_setup.exe&quot;</span>,<br>                                    <span class="hljs-string">&quot;?:<span class="hljs-subst">\\</span>PROGRA~2<span class="hljs-subst">\\</span>ADVANC~1<span class="hljs-subst">\\</span>downloads<span class="hljs-subst">\\</span>MAV-Installer.exe&quot;</span>))<br>  ]<br> [library <span class="hljs-keyword">where</span><br>  dll.name : (<span class="hljs-string">&quot;ws2_32.dll&quot;</span>, <span class="hljs-string">&quot;wininet.dll&quot;</span>, <span class="hljs-string">&quot;winhttp.dll&quot;</span>) and<br>  process.thread.<span class="hljs-type">Ext</span>.call_stack_contains_unbacked <span class="hljs-operator">==</span> <span class="hljs-literal">true</span> and<br>  (<br>   process.thread.<span class="hljs-type">Ext</span>.call_stack_summary :<br>                  (<span class="hljs-string">&quot;ntdll.dll|wow64.dll|wow64cpu.dll|wow64.dll|ntdll.dll|kernelbase.dll|Unbacked&quot;</span>,<br>                   <span class="hljs-string">&quot;ntdll.dll|wow64.dll|wow64cpu.dll|wow64.dll|ntdll.dll|kernelbase.dll|Unbacked|kernel32.dll|ntdll.dll&quot;</span>,<br>                   <span class="hljs-string">&quot;ntdll.dll|kernelbase.dll|Unbacked&quot;</span>,<br>                   <span class="hljs-string">&quot;ntdll.dll|iphlpapi.dll|Unbacked&quot;</span>,<br>                   <span class="hljs-string">&quot;ntdll.dll|winhttp.dll|Unbacked&quot;</span>,<br>                   <span class="hljs-string">&quot;ntdll.dll|kernelbase.dll|wininet.dll|Unbacked&quot;</span>,<br>                   <span class="hljs-string">&quot;ntdll.dll|kernelbase.dll|Unbacked|kernel32.dll|ntdll.dll&quot;</span>,<br>                   <span class="hljs-string">&quot;ntdll.dll|wow64.dll|wow64cpu.dll|wow64.dll|ntdll.dll|Unbacked&quot;</span>,<br>                   <span class="hljs-string">&quot;ntdll.dll|wow64.dll|wow64cpu.dll|wow64.dll|ntdll.dll|wininet.dll|Unbacked|ntdll.dll&quot;</span>,<br>                   <span class="hljs-string">&quot;ntdll.dll|wow64.dll|wow64cpu.dll|wow64.dll|ntdll.dll|Unbacked|kernel32.dll|ntdll.dll&quot;</span>,<br>                   <span class="hljs-string">&quot;ntdll.dll|kernelbase.dll|Unbacked|kernelbase.dll|ntdll.dll|kernel32.dll|ntdll.dll&quot;</span>) or<br>  <br>  startswith<span class="hljs-operator">~</span>(process.thread.<span class="hljs-type">Ext</span>.call_stack_summary, concat(concat(<span class="hljs-string">&quot;ntdll.dll|wow64.dll|wow64cpu.dll|wow64.dll|ntdll.dll|kernelbase.dll|Unbacked|&quot;</span>, process.name), <span class="hljs-string">&quot;|kernel32.dll|ntdll.dll&quot;</span>))<br>  ) and<br>  <span class="hljs-comment">/* DynTrace, HP Sure Click Hook Dll */</span><br>  not _arraysearch(process.thread.<span class="hljs-type">Ext</span>.call_stack, <span class="hljs-variable">$entry</span>,<br>                   <span class="hljs-variable">$entry</span>.callsite_leading_bytes :<br>                         (<span class="hljs-string">&quot;*6764a118008b40243b835b080000753033c089835b0800008d835f080000508d8353000000506a006a00ff936b080000*&quot;</span>,<br>                          <span class="hljs-string">&quot;45fc33c08945f88bf28dbd82fcffffb9dc000000f3a566a568008000006a0052ff55b86803800000ff55bc8bf080bd82fcffff0074188d8592fdffff50ff55c4&quot;</span>,<br>                          <span class="hljs-string">&quot;*d74533db4c8b4d504c894d284c8d0d0f0000004c894d404c8b4d6041c6410c00ffd0*&quot;</span>,<br>                          <span class="hljs-string">&quot;83ec28488b4c2430ff15b40f00004883c428c3cccccccccccccc4c894424188954241048894c24084883ec38837c244801755f488d0d701f0000ff15720f0000&quot;</span>,<br>                          <span class="hljs-string">&quot;55c0488d55c0488b4d10e8886dadff488bc8488975b8488b55b0488b5220488b02488bd64533db4c8b45b04c8945804c8d050a0000004c894598c6470c00ffd0&quot;</span>, <br>                          <span class="hljs-string">&quot;488bcd48894da8488d8d78ffffff48894b10488975c0488b4db8488b4920488b01488bcf488bd64c8b45b84c8945884c8d050a0000004c8945a0c6430c00ffd0&quot;</span>,<br>                          <span class="hljs-string">&quot;80000000c7858c00000001000000488b4d50488b4920488b01488b8d800000004533db488b555048895528488d150e00000048895540488b5560c6420c00ffd0&quot;</span>)) and<br>  <span class="hljs-comment">/* Managed Code, Cynet MemScanner, xSecuritas */</span><br>  not _arraysearch(process.thread.<span class="hljs-type">Ext</span>.call_stack, <span class="hljs-variable">$entry</span>,<br>                   <span class="hljs-variable">$entry</span>.callsite_trailing_bytes :<br>                         (<span class="hljs-string">&quot;*8945b4488bcce82c000000908b45b4488b55a8c6420c01488b55a8488b*&quot;</span>,<br>                          <span class="hljs-string">&quot;c6430c01833d*5f007406ff1*&quot;</span>,<br>                          <span class="hljs-string">&quot;48898424e80300004883bc24e803000000750eff94247e030000898424f0030000eb30488d8c2430010000ff94248e03000048898424e80300004883bc24e803&quot;</span>,<br>                          <span class="hljs-string">&quot;8bd885db751eff55c88945f8eb168d8592fdffff50ff55d08bd885db7506ff55c88945f856ff55bc85db0f847601000080bd82fcffff0074508b45fc05a00000&quot;</span>,<br>                          <span class="hljs-string">&quot;488b55a8c6420c01833d8bbeb25f007406ff1593c7b25f8945b4488bcce82c000000908b45b4488b55a8c6420c01488b55a8488b8d70ffffff48894a10488d65&quot;</span>,<br>                          <span class="hljs-string">&quot;**45a848894590eb00488b4590488b5588c6420c01488b5588&quot;</span>,<br>                          <span class="hljs-string">&quot;*488b5560c6420c01488b5560488b4d2048894a&quot;</span>,<br>                          <span class="hljs-string">&quot;c6470c01833d6cf1b45f007406ff15f40cb45f8bf0e8b5e76f5f85f6400f95c6400fb6f64883bdc0000000007423488b8dc0000000e825ebe25e448bc0488b95&quot;</span>,<br>                          <span class="hljs-string">&quot;488b5560c6420c01833db339f55f007406ff153b43f55f898584000000488b4d00e845000000908b8584000000488b5560c6420c01488b5560488b4d2048894a&quot;</span>,<br>                          <span class="hljs-string">&quot;898383080000c7837f080000010000006a0056ff9397080000ff938b*&quot;</span>,<br>                          <span class="hljs-string">&quot;41c64?0c01833d*&quot;</span>,<br>                          <span class="hljs-string">&quot;c6430c0148ba*f87f0000833a00740c*&quot;</span>,<br>                          <span class="hljs-string">&quot;c6470c01833d*&quot;</span>,<br>                          <span class="hljs-string">&quot;a3b8eb*&quot;</span>,<br>                          <span class="hljs-string">&quot;a314a2e40585c*&quot;</span>,<br>                          <span class="hljs-string">&quot;488b9570ffffffc6420*&quot;</span>,<br>                          <span class="hljs-string">&quot;49bb60c0*&quot;</span>,<br>                          <span class="hljs-string">&quot;488b5590c6420c01833d*&quot;</span>,<br>                          <span class="hljs-string">&quot;*ba0c0000004c8d4c2450448d423441ffd3*&quot;</span>,<br>                          <span class="hljs-string">&quot;*ca85c0b8000000000fb6d60f95c0898424f40200000ac22b742458d0d80fb6c0*&quot;</span>,<br>                          <span class="hljs-string">&quot;*898424300300008d14922b9c24d0010000f7d28bc3034424600fbbc20facc2183b44240892&quot;</span>,<br>                          <span class="hljs-string">&quot;41c6460c0148ba*7f0000833a00740c*&quot;</span>,<br>                          <span class="hljs-string">&quot;8be55d558bec83ec08c745f800000000*&quot;</span>,<br>                          <span class="hljs-string">&quot;48898424b80000004883bc24b8000000000f848d000000488b442440480510130000488bd0488b8c24b8000000ff94249000000048898424d80000004883bc24&quot;</span>, <br>                          <span class="hljs-string">&quot;898383080000c7837f080000010000006a0056ff9397080000ff938b08000050ff9393080000cc8b1c24c3ce0000087c00960046003a005c00500072006f0067&quot;</span>, <br>                          <span class="hljs-string">&quot;488944242048837c24200075*&quot;</span>, <br>                          <span class="hljs-string">&quot;c6430c01833d*&quot;</span>,<br>                          <span class="hljs-string">&quot;*0000ba0c0000004c8d4c2450448d423441ffd3*&quot;</span>,<br>                          <span class="hljs-string">&quot;41c6470c0148ba*7f0000833a00740c48b9*&quot;</span>,<br>                          <span class="hljs-string">&quot;41c6470c0148ba*4c8b6d8849897508498bc5488b9548ffffff498957104881&quot;</span>,<br>                          <span class="hljs-string">&quot;c6460c01833db6e5e75f007406ff15eae8e65f488bd8e8aa38b25f488bc3488b4d8048894e104883c4785b5e5f415c415d415e415f5dc367611910090010e20c&quot;</span>,<br>                          <span class="hljs-string">&quot;49bb60c05eb7ff7f000048b9*&quot;</span>,<br>                          <span class="hljs-string">&quot;488945984885c07507bac4020000eb2d6685db750*&quot;</span>,<br>                          <span class="hljs-string">&quot;*488b5588498956104883c4785b5e5f415c415d415e&quot;</span>,<br>                          <span class="hljs-string">&quot;c6460c01833d*&quot;</span>,<br>                          <span class="hljs-string">&quot;898383080000c7837f080000010000006a0056ff9397080000*&quot;</span>,<br>                          <span class="hljs-string">&quot;8be55d558bec83ec08c745f800000000c745fc02000000*&quot;</span>,<br>                          <span class="hljs-string">&quot;898383080000c7837f080000010000006a0056ff*&quot;</span>,<br>                          <span class="hljs-string">&quot;49bbb014*f0000ba0c0000004c8d4c2450448d423441ffd349bb403*&quot;</span>,<br>                          <span class="hljs-string">&quot;*00ba0c0000004c8d4c2450448d423441ffd349bb*&quot;</span>,<br>                          <span class="hljs-string">&quot;*48bf7063107ef67f0000488b064889074883c6084883c708488b06488907415f415e415d415c41*&quot;</span>,<br>                          <span class="hljs-string">&quot;84c07507e8b8836effeb498b45f88b55c089108b45e48945f4c70518c*&quot;</span>,<br>                          <span class="hljs-string">&quot;488b8d70ffffffc6410c01833df07bca5e007406ff15a47fc95e488b8d70ffffff488b9528ffffff48895110488945b0ff15804ce6fe8945c4488bcce8780000&quot;</span>,<br>                          <span class="hljs-string">&quot;498bd7488bcf4c8be8e819bbffff4533ff4d85ed0f84520200004c8b9760020000488d95e0000000440fb74424744533c9498bcd41ffd24c8be04885c00f8420&quot;</span>,<br>                          <span class="hljs-string">&quot;488943384885c07512ff15035608004c8d054ce80800e93fffffff4c3973407438663b6b1c7511488b5330488bcfff15d65a080085c07421488b4b40ff157857&quot;</span>,<br>                          <span class="hljs-string">&quot;89434885c07507f0ff054b360c000f57c04489bb2c0200004c89bb400200004c89bb480200004489bb500200000f1183580200000f1183680200000f11837802&quot;</span>,<br>                          <span class="hljs-string">&quot;488944242048837c242000750e488d0d7e0f0000e8a1ffffffeb37488d15980f0000488b4c2420ff153d0f0000488944242848837c242800750e488d0d910f00&quot;</span>,<br>                          <span class="hljs-string">&quot;c6430c0148ba446a76e3fd7f0000833a00740c48b9988375e3fd7f0000ff11488b5580488953104883c4785b5e5f415c415d415e415f5dc30000001910090010&quot;</span>,<br>                          <span class="hljs-string">&quot;f7d20fca85c08af3a37002f103b8000000000fca0f95c01af08984243803000033b424e001000003c60fc8e9a50100004a8bc6c1ea0b8d94248c01000003023b&quot;</span>,<br>                          <span class="hljs-string">&quot;488945984885c07507bac4020000eb2d6685db7505bbffff00000fb7d3488bc8448bca89542420448bc2488d058dc00000ff140785c0752cbad0020000488b8d&quot;</span>,<br>                          <span class="hljs-string">&quot;807c240c00894604740d85c0740583f8ff7504c64608008bc65ec20800568bf18b4e0433c085c9741083f9ff740bff74240851ff1598412f03807c240c007407&quot;</span>,<br>                          <span class="hljs-string">&quot;488906488bcb41ff542420488b064903e6eb17488bcb41ff5424384883f8087e06488b46f8eb034833c04883c420415e415c5f5e5bc300000000000000000000&quot;</span>, <br>                          <span class="hljs-string">&quot;48898424f00300004883bc24f003000000750eff94248e030000898424f80300008b8c24fc030000ff942476030000eb30488d8c2440010000ff94249e030000&quot;</span>, <br>                          <span class="hljs-string">&quot;8945f8837df80074658b45fc05601a0000508b4df8518b55fc8b8250170000ffd08945f4837df4007426b9010000006bd1008b45fc0fbe8c10641b000085c974&quot;</span>,<br>                          <span class="hljs-string">&quot;c6430c0148ba446a8e00f87f0000833a00740c48b998838d00f87f0000ff11488b5580488953104883c4785b5e5f415c415d415e415f5dc30000001910090010&quot;</span>,<br>                          <span class="hljs-string">&quot;48890550cf4700483bc30f849e010000488d15f0ab3800488bc8ff15a7173600488b0d30cf4700488d15c1ab380048890532cf4700ff158c173600488b0d15cf&quot;</span>,<br>                          <span class="hljs-string">&quot;4889842470020000488d0d1e5e1100ff15c0fc10004889442458488d0dfc5d1100ff15aefc100048898424a0020000488d15cf5d1100488b4c2458ff159cfc10&quot;</span>,<br>                          <span class="hljs-string">&quot;488944242048837c242000750e488d0d7e0f0000e8a1ffffffeb37488d15980f0000488b4c2420ff153d0f0000488944242848837c242800750e488d0d910f00&quot;</span>,<br>                          <span class="hljs-string">&quot;4885c0750bb8030000004883c4205bc3488d9318020000488bc8ff53084885c0750bb8040000004883c4205bc3488b4b10ffd033c04883c4205bc3cccccccccc&quot;</span>,<br>                          <span class="hljs-string">&quot;488944242048837c242000750e488d0d7e0f0000e8a1ffffffeb37488d15980f0000488b4c2420ff153d0f0000488944242848837c242800750e488d0d910f00&quot;</span>,<br>                          <span class="hljs-string">&quot;488b8d70ffffffc6410c01833d1479e65d007406ff1524cde55d488b8d70ffffff488b9528ffffff48895110488945b0ff1558ca1cfe8945c4488bcce8780000&quot;</span>,<br>                          <span class="hljs-string">&quot;4c8bd04889442458488d05345d00004803c6488d4c2458ffd084c07407bac3020000eb2d6685db7505bb102700000fb7d3488d053fbd0000448bca8954242044&quot;</span>,<br>                          <span class="hljs-string">&quot;86f285c00f94c28b9424c0020000a3302858048bc2b8000000000f90c00fa3d00f95c03ae084f48984245c0300000f94c4c0dc022b9c24bc0100008d049b0fa4&quot;</span>,<br>                          <span class="hljs-string">&quot;86f285c00f94c28b9424c0020000a33028*&quot;</span>,<br>                          <span class="hljs-string">&quot;488944242848837c242800750bff9424be03000089442430eb27488d8c2470010000ff9424ce030000488944242848837c242800750bff9424be030000894424&quot;</span>,<br>                          <span class="hljs-string">&quot;4c8bf04885c00f84cc00000083fb027c22488d4c2458c74424585b57485dc744245c2047504166c74424600a00ff9570010000488d542468498bceff55384c8b&quot;</span>,<br>                          <span class="hljs-string">&quot;488bc84885c075098d41034883c4205bc3488b4308488d9318020000ffd04885c0750bb8040000004883c4205bc3488b4b10ffd033c04883c4205bc3cccc488b&quot;</span>))<br>  ]<br>  until [process <span class="hljs-keyword">where</span> event.action:<span class="hljs-string">&quot;end&quot;</span>]<br>&#x27;&#x27;&#x27;<br><br>min_endpoint_version <span class="hljs-operator">=</span> <span class="hljs-string">&quot;8.8.0&quot;</span><br>[[actions]]<br>action <span class="hljs-operator">=</span> <span class="hljs-string">&quot;kill_process&quot;</span><br>field <span class="hljs-operator">=</span> <span class="hljs-string">&quot;process.entity_id&quot;</span><br>state <span class="hljs-operator">=</span> <span class="hljs-number">1</span><br><br>[[optional_actions]]<br>action <span class="hljs-operator">=</span> <span class="hljs-string">&quot;rollback&quot;</span><br>field <span class="hljs-operator">=</span> <span class="hljs-string">&quot;process.entity_id&quot;</span><br>state <span class="hljs-operator">=</span> <span class="hljs-number">0</span><br><br>[[threat]]<br>framework <span class="hljs-operator">=</span> <span class="hljs-string">&quot;MITRE ATT&amp;CK&quot;</span><br>[[threat.technique]]<br>id <span class="hljs-operator">=</span> <span class="hljs-string">&quot;T1055&quot;</span><br>name <span class="hljs-operator">=</span> <span class="hljs-string">&quot;Process Injection&quot;</span><br>reference <span class="hljs-operator">=</span> <span class="hljs-string">&quot;https://attack.mitre.org/techniques/T1055/&quot;</span><br><br><br>[threat.tactic]<br>id <span class="hljs-operator">=</span> <span class="hljs-string">&quot;TA0005&quot;</span><br>name <span class="hljs-operator">=</span> <span class="hljs-string">&quot;Defense Evasion&quot;</span><br>reference <span class="hljs-operator">=</span> <span class="hljs-string">&quot;https://attack.mitre.org/tactics/TA0005/&quot;</span><br><br>[<span class="hljs-keyword">internal</span>]<br>min_endpoint_version <span class="hljs-operator">=</span> <span class="hljs-string">&quot;8.8.0&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>我们可以观察到Elastic密切监控了”ws2_32.dll”, “wininet.dll”, “winhttp.dll”这三个dll，这三个dll和我们的C2通讯密切相关，确切的说想要通讯我们就离不开这三个dll。</p>
+<p>有人会说我可以使用其他库比如curl但是curl的底层通讯还是依赖<code>ws2_32</code>。因为 <code>ws2_32.dll</code> 提供了 <code>cURL</code> 进行网络连接的基本 API，比如创建套接字、连接服务器、发送和接收数据等功能。</p>
+<p>Elastic列出了很多个可疑的堆栈状态，我们只需要关注一点，那就是Dll的加载是从非备份内存发生的。这在大多数的C2和RAT上都会产生(当然只要他们使用Shellcode这种内存加载的方式)。</p>
+<p>我们使用经典的C2 CobaltStrike来进行演示，</p>
+<p><img src="/AboutLoadLibrary-01%5C20241101155602.png" srcset="/img/loading.gif" lazyload alt="20241101155602"></p>
+<p>可以看到我们加载<code>wininet.dll</code>的堆栈过程中，<code>LoadLibraryA</code>是从非备份内存发起的。</p>
+<p>那么安全产品就可以追踪到这块内存进行告警和内存扫描。</p>
+<h3 id="如何避免被评判"><a href="#如何避免被评判" class="headerlink" title="如何避免被评判"></a>如何避免被评判</h3><p>我们把思路转换一下，从如何避免产生转换为如何避免被评判为非法的，这样会让我们变的更加轻松愉快。</p>
+<p>我们可以注意到，再逆向ntdll的过程中我们发现了两个可以使EDR知道我们加载了这个DLL的方案，一个是回调通知一个是ETW。但是归根结底，目前通用的检测方案是对于加载过程的堆栈进行评判，所以我们需要一个干净的堆栈。</p>
+<h2 id="什么是堆栈"><a href="#什么是堆栈" class="headerlink" title="什么是堆栈"></a>什么是堆栈</h2><p>灵魂发文：什么是堆栈？</p>
+<p>确切的说我们这里是要讨论栈(stack),堆是(Heap)我们今天只讨论Stack。为了口语上的舒适我习惯称为堆栈。这里我白嫖一下BRC4作者的一些书面。</p>
+<p>堆栈（Stack）是计算机科学中用于临时存储数据的一种数据结构，通常用于存放局部变量和函数参数。可以将堆栈想象成一叠书，最后放上去的书会最先被拿走，这就是“后进先出”（Last In, First Out, LIFO）的原则。</p>
+<p>在程序执行时，每当一个新线程被创建时，系统会为这个线程分配一个新的堆栈空间。这个堆栈的初始大小通常为1MB，除非开发者在创建线程时明确指定其他大小。堆栈从底部向顶部增长，像一个叠书一样。在这个过程中，当前的堆栈指针由寄存器（在x64中是RSP，在x86中是ESP）来存储，指示着当前堆栈的顶部位置。</p>
+<p>堆栈的特点是，它的管理是自动的。编译器会在编译过程中自动计算出每个函数所需的堆栈空间并生成相应的汇编指令。当函数被调用时，编译器会为该函数分配所需的堆栈空间，例如：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">void</span> <span class="hljs-title function_">samplefunction</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-type">char</span> test[<span class="hljs-number">8192</span>]; <span class="hljs-comment">// 分配8192字节的局部变量</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>在这个例子中，编译器会将这个函数转换为类似下面的汇编代码：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs asm">sub rsp, 0x2000 // 从堆栈中减去8192字节<br></code></pre></td></tr></table></figure>
+
+<p>这表示函数在运行时会从堆栈中保留8192字节用于变量存储。当函数执行完毕后，它会将之前分配的空间释放掉：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs asm">add rsp, 0x2000 // 将8192字节加回堆栈<br>ret              // 返回到调用该函数的位置<br></code></pre></td></tr></table></figure>
+
+<p>每个函数的堆栈帧（stack frame）包含了函数的返回地址、局部变量以及用于返回的必要信息。当一个函数调用另一个函数时，当前函数的地址会被压入堆栈，以便在被调用的函数执行完毕后能正确返回到原来的位置。</p>
+<p>当我们调用多个函数时，堆栈会逐层形成堆栈帧。例如：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">void</span> <span class="hljs-title function_">func3</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-type">char</span> test[<span class="hljs-number">2048</span>]; <span class="hljs-comment">// func3 的局部变量</span><br>    <span class="hljs-keyword">return</span>;<br>&#125;<br><br><span class="hljs-type">void</span> <span class="hljs-title function_">func2</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-type">char</span> test[<span class="hljs-number">4096</span>]; <span class="hljs-comment">// func2 的局部变量</span><br>    func3();        <span class="hljs-comment">// 调用 func3</span><br>&#125;<br><br><span class="hljs-type">void</span> <span class="hljs-title function_">func1</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-type">char</span> test[<span class="hljs-number">8192</span>]; <span class="hljs-comment">// func1 的局部变量</span><br>    func2();        <span class="hljs-comment">// 调用 func2</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这段代码在汇编层面上大致会变成：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs asm">func3:<br>    sub rsp, 0x800 // 分配2048字节<br>    ; 执行某些操作<br>    add rsp, 0x800 // 释放2048字节<br>    ret            // 返回<br><br>func2:<br>    sub rsp, 0x1000 // 分配4096字节<br>    call func3      // 调用 func3<br>    add rsp, 0x1000 // 释放4096字节<br>    ret             // 返回<br><br>func1:<br>    sub rsp, 0x2000 // 分配8192字节<br>    call func2      // 调用 func2<br>    add rsp, 0x2000 // 释放8192字节<br>    ret             // 返回<br></code></pre></td></tr></table></figure>
+
+<p>每个函数的堆栈帧记录了局部变量的大小、返回地址和其他必要的信息。这样，程序在执行时能清楚地知道当前的执行上下文是什么，能有效管理内存。</p>
+<p>为了让五岁的孩子也可以理解，我尝试解释的更清楚一些(lol)</p>
+<ul>
+<li>想象你有一个叠好的盘子，每次你想放一个新盘子时，你会把它放到最上面；每次你需要一个盘子时，你也会先拿走最上面的那个。这就是堆栈的工作原理：后放进去的东西先拿出来。</li>
+</ul>
+<p>我们记住两个重要的知识点：</p>
+<ul>
+<li><p><strong>后进先出（LIFO）</strong>：最后放入堆栈的东西，最先被取出。</p>
+</li>
+<li><p><strong>自动管理</strong>：程序运行时，堆栈的内存分配和释放是自动的，程序员不需要手动去管理。</p>
+</li>
+</ul>
+<p>在程序中，堆栈主要用于存放：</p>
+<ul>
+<li><strong>局部变量</strong>：函数内部定义的变量。</li>
+<li><strong>函数调用的信息</strong>：比如当你在一个函数中调用另一个函数时，程序需要记住返回到哪个地方去执行接下来的代码。</li>
+</ul>
+<p>比如这个很基础的Demo</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs csharp"><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">funcA</span>()</span> &#123;<br>    <span class="hljs-built_in">int</span> x = <span class="hljs-number">10</span>; <span class="hljs-comment">// funcA 的局部变量</span><br>&#125;<br><br><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">funcB</span>()</span> &#123;<br>    <span class="hljs-built_in">int</span> y = <span class="hljs-number">20</span>; <span class="hljs-comment">// funcB 的局部变量</span><br>    funcA();    <span class="hljs-comment">// 调用 funcA</span><br>&#125;<br><br><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">funcC</span>()</span> &#123;<br>    <span class="hljs-built_in">int</span> z = <span class="hljs-number">30</span>; <span class="hljs-comment">// funcC 的局部变量</span><br>    funcB();    <span class="hljs-comment">// 调用 funcB</span><br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>在这段代码中，函数 <code>funcC</code> 调用了 <code>funcB</code>，而 <code>funcB</code> 又调用了 <code>funcA</code>。当 <code>funcC</code> 被调用时，会发生以下事情：</p>
+<ol>
+<li>分配空间：<ul>
+<li>为 <code>funcC</code> 分配堆栈空间，存储局部变量 <code>z</code>。</li>
+</ul>
+</li>
+<li>调用 <code>funcB</code>：<ul>
+<li>在 <code>funcC</code> 中调用 <code>funcB</code>，这时 <code>funcC</code> 的返回地址（即执行完 <code>funcC</code> 后要返回的地方）会被保存到堆栈中。</li>
+<li>为 <code>funcB</code> 分配堆栈空间，存储局部变量 <code>y</code>。</li>
+</ul>
+</li>
+<li>调用 <code>funcA</code>：<ul>
+<li>在 <code>funcB</code> 中调用 <code>funcA</code>，<code>funcB</code> 的返回地址也会被保存到堆栈中。</li>
+<li>为 <code>funcA</code> 分配堆栈空间，存储局部变量 <code>x</code>。</li>
+</ul>
+</li>
+</ol>
+<p><strong>返回的过程</strong></p>
+<p>当 <code>funcA</code> 执行完毕时，它会返回到 <code>funcB</code>，并释放 <code>funcA</code> 的堆栈空间。接着，<code>funcB</code> 也执行完毕，返回到 <code>funcC</code>，并释放 <code>funcB</code> 的堆栈空间。最后，<code>funcC</code> 完成后，释放它的堆栈空间。</p>
+<p>我来给各位描绘一下：</p>
+<p>当程序开始时，堆栈是空的。</p>
+<figure class="highlight gcode"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs gcode">堆栈：<br><span class="hljs-comment">(空)</span><br></code></pre></td></tr></table></figure>
+
+<ol>
+<li>当调用 <code>funcC</code> 时，堆栈中会添加 <code>funcC</code> 的信息，包括返回地址和局部变量 <code>z</code>。</li>
+</ol>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc"><span class="hljs-section">堆栈：</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| 返回地址 (funcC后) |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| z = 30             |</span><br><span class="hljs-section">+--------------------+</span><br></code></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>在 <code>funcC</code> 中调用 <code>funcB</code>，堆栈会添加 <code>funcB</code> 的信息，包括返回地址和局部变量 <code>y</code>。</li>
+</ol>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc"><span class="hljs-section">堆栈：</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| 返回地址 (funcB后) |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| y = 20             |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| 返回地址 (funcC后) |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| z = 30             |</span><br><span class="hljs-section">+--------------------+</span><br></code></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>在 <code>funcB</code> 中调用 <code>funcA</code>，堆栈会添加 <code>funcA</code> 的信息，包括返回地址和局部变量 <code>x</code>。</li>
+</ol>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc"><span class="hljs-section">堆栈：</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| 返回地址 (funcA后) |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| x = 10             |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| 返回地址 (funcB后) |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| y = 20             |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| 返回地址 (funcC后) |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| z = 30             |</span><br><span class="hljs-section">+--------------------+</span><br></code></pre></td></tr></table></figure>
+
+<ol start="4">
+<li>当 <code>funcA</code> 执行完毕时，它会返回到 <code>funcB</code>，堆栈将释放 <code>funcA</code> 的空间。</li>
+</ol>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc"><span class="hljs-section">堆栈：</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| 返回地址 (funcB后) |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| y = 20             |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| 返回地址 (funcC后) |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| z = 30             |</span><br><span class="hljs-section">+--------------------+</span><br></code></pre></td></tr></table></figure>
+
+<ol start="5">
+<li>当 <code>funcB</code> 执行完毕时，它会返回到 <code>funcC</code>，堆栈将释放 <code>funcB</code> 的空间。</li>
+</ol>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc"><span class="hljs-section">堆栈：</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| 返回地址 (funcC后) |</span><br><span class="hljs-section">+--------------------+</span><br><span class="hljs-section">| z = 30             |</span><br><span class="hljs-section">+--------------------+</span><br></code></pre></td></tr></table></figure>
+
+<ol start="6">
+<li>当 <code>funcC</code> 执行完毕时，程序将返回到主程序，堆栈会清空。</li>
+</ol>
+<figure class="highlight gcode"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs gcode">堆栈：<br><span class="hljs-comment">(空)</span><br></code></pre></td></tr></table></figure>
+
+<p>这要是还不能理解，请不要看下去了，我真的会谢~🥲</p>
+<h2 id="思考破局之法"><a href="#思考破局之法" class="headerlink" title="思考破局之法"></a>思考破局之法</h2><p>不管杀软是通过Userland下的Hook还是ETWTi亦或者内核上的一些处理，都可以捕获到我们的堆栈遥测。那么有人会说我们不用shellcode不就行了，我们在合法的模块不就行了…</p>
+<p>先把那个说不用shellcode的同学叉出去。</p>
+<p>我们先来思考怎么才能在合法的模块中呢？</p>
+<p>1、欺骗过程中的返回地址</p>
+<p>2、模块践踏</p>
+<p>3、使用虚假的堆栈</p>
+<p>PS.SentinelOne检测特定模块的堆栈的返回地址</p>
+<p><img src="/AboutLoadLibrary-01/20241102025101.png" srcset="/img/loading.gif" lazyload alt="20241102025101"></p>
+<p>在我的小玩具XSafe中正是实现了Userland的Hook，对调用地址进行了(可能较为充分)检查。</p>
+<p>在过去，我关注到的一下Proxy dll load技术，虽然可能稍微有些过时，但是还可以拿出来讲一讲。他们来自于Nighthawk 以及 bruteratelc4。</p>
+<h2 id="代理模块加载"><a href="#代理模块加载" class="headerlink" title="代理模块加载"></a>代理模块加载</h2><p>在我们红队操作过程中，许多时候都会直接或者间接的利用到<code>LoadLibrary</code>函数，用来解析并且继续执行我们所需的 API 函数。最常见的场景就是动态加载动态调用(简直太常见了)。很多的安全产品已经根据这一点进行了针对性检查。安全产品可以通过堆栈遍历<code>LoadLibrary</code>来检查其调用的来源，并验证合法性。</p>
+<p>堆栈遍历是安全供应商用来分析程序调用堆栈的一种技术，它追溯函数调用的顺序，以确定 WinAPI 调用的来源和上下文。通过了解执行了哪些函数、它们的顺序以及调用它们的模块，来抓住隐藏在内存中的威胁。</p>
+<p>在堆栈分析期间，安全工具会寻找常见异常，例如调用是否源自私有可执行内存（当payload驻留在<code>VirtualAlloc</code>&#x2F;分配的内存区域中时，这是一种常见指标<code>VirtualAllocEx</code>）或者是否尝试加载常被滥用的库（如<code>winhttp.dll</code>或<code>wininet.dll</code>用于 HTTP&#x2F;HTTPS 的通信）。</p>
+<p>当 shellcode 在私有虚拟内存（即由<code>VirtualAlloc</code>&#x2F;分配的内存<code>VirtualAllocEx</code>）中执行时，从该区域进行的每个函数调用都将具有指向私有虚拟内存的返回地址。</p>
+<p>举个例子：<img src="/AboutLoadLibrary-01/20241014070016.png" srcset="/img/loading.gif" lazyload alt="20241014070016"></p>
+<p>我们这里借用一个经典的方案<code>RtlQueueWorkItem</code>,通过这个API我们可以排队到一个工作线程，拥有一个干净的堆栈。</p>
+<figure class="highlight objectivec"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br></pre></td><td class="code"><pre><code class="hljs objectivec"><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;Windows.h&gt;</span></span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;winternl.h&gt;</span></span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdio.h&gt;</span></span><br><br><span class="hljs-comment">// 宏定义：获取当前进程句柄</span><br><span class="hljs-meta">#<span class="hljs-keyword">define</span> NtCurrentProcess() ( ( HANDLE ) ( LONG_PTR ) -1 )</span><br><br><span class="hljs-comment">// 宏定义：动态导入指定 DLL 中的函数</span><br><span class="hljs-meta">#<span class="hljs-keyword">define</span> IMPORTAPI( DLLFILE, FUNCNAME, RETTYPE, ...) \</span><br><span class="hljs-meta">typedef RETTYPE( WINAPI* type##FUNCNAME )( __VA_ARGS__ ); \</span><br><span class="hljs-meta">type##FUNCNAME FUNCNAME = (type##FUNCNAME)GetProcAddress((LoadLibraryW(DLLFILE), GetModuleHandleW(DLLFILE)), #FUNCNAME);</span><br><br><span class="hljs-comment">// 获取指定库的模块句柄</span><br>HMODULE getModuleHandle(LPCWSTR libraryName)<br>&#123;<br>    <span class="hljs-comment">// 获取当前线程的环境块，访问模块列表</span><br>    <span class="hljs-keyword">const</span> LIST_ENTRY* head = &amp;NtCurrentTeb()-&gt;ProcessEnvironmentBlock-&gt;Ldr-&gt;InMemoryOrderModuleList;<br>    LIST_ENTRY* next = head-&gt;Flink;<br><br>    <span class="hljs-comment">// 遍历模块列表</span><br>    <span class="hljs-keyword">while</span> (next != head)<br>    &#123;<br>        <span class="hljs-comment">// 获取当前模块的条目</span><br>        LDR_DATA_TABLE_ENTRY* entry =<br>            CONTAINING_RECORD(next, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);<br>        <span class="hljs-comment">// 获取模块的完整名称</span><br>        <span class="hljs-keyword">const</span> UNICODE_STRING* basename = (UNICODE_STRING*)((BYTE*)&amp;entry-&gt;FullDllName<br>            + <span class="hljs-keyword">sizeof</span>(UNICODE_STRING));<br><br>        <span class="hljs-comment">// 比较库名称</span><br>        <span class="hljs-keyword">if</span> (_wcsicmp(libraryName, basename-&gt;Buffer) == <span class="hljs-number">0</span>)<br>        &#123;<br>            <span class="hljs-comment">// 返回库的基址</span><br>            <span class="hljs-keyword">return</span> entry-&gt;DllBase;<br>        &#125;<br><br>        next = next-&gt;Flink; <span class="hljs-comment">// 移动到下一个条目</span><br>    &#125;<br>    <span class="hljs-keyword">return</span> <span class="hljs-literal">NULL</span>; <span class="hljs-comment">// 未找到指定的库</span><br>&#125;<br><br><span class="hljs-comment">// 队列加载库的函数</span><br>HMODULE queueLoadLibrary(WCHAR* libraryName, <span class="hljs-type">BOOL</span> swtch)<br>&#123;<br>    <span class="hljs-comment">// 导入 NtWaitForSingleObject 函数</span><br>    IMPORTAPI(L<span class="hljs-string">&quot;NTDLL.dll&quot;</span>, NtWaitForSingleObject, NTSTATUS, HANDLE, BOOLEAN, PLARGE_INTEGER);<br><br>    <span class="hljs-comment">// 根据 swtch 的值决定加载方式</span><br>    <span class="hljs-keyword">if</span> (swtch)<br>    &#123;<br>        <span class="hljs-comment">// 导入 RtlQueueWorkItem 函数</span><br>        IMPORTAPI(L<span class="hljs-string">&quot;NTDLL.dll&quot;</span>, RtlQueueWorkItem, NTSTATUS, PVOID, PVOID, ULONG);<br><br>        <span class="hljs-comment">// 异步加载库</span><br>        <span class="hljs-keyword">if</span> (NT_SUCCESS(RtlQueueWorkItem(&amp;LoadLibraryW, (PVOID)libraryName, WT_EXECUTEDEFAULT)))<br>        &#123;<br>            LARGE_INTEGER timeout;<br>            timeout.QuadPart = <span class="hljs-number">-500000</span>; <span class="hljs-comment">// 设置超时时间</span><br>            <span class="hljs-comment">// 等待当前进程完成</span><br>            NtWaitForSingleObject(NtCurrentProcess(), <span class="hljs-literal">FALSE</span>, &amp;timeout);<br>        &#125;<br>    &#125;<br>    <span class="hljs-keyword">else</span><br>    &#123;<br>        <span class="hljs-comment">// 导入 RtlRegisterWait 函数</span><br>        IMPORTAPI(L<span class="hljs-string">&quot;NTDLL.dll&quot;</span>, RtlRegisterWait, NTSTATUS, PHANDLE, HANDLE, WAITORTIMERCALLBACKFUNC, PVOID, ULONG, ULONG);<br>        HANDLE newWaitObject; <span class="hljs-comment">// 新的等待对象</span><br>        HANDLE eventObject = CreateEventW(<span class="hljs-literal">NULL</span>, <span class="hljs-literal">FALSE</span>, <span class="hljs-literal">FALSE</span>, <span class="hljs-literal">NULL</span>); <span class="hljs-comment">// 创建事件对象</span><br><br>        <span class="hljs-comment">// 注册等待对象</span><br>        <span class="hljs-keyword">if</span> (NT_SUCCESS(RtlRegisterWait(&amp;newWaitObject, eventObject, LoadLibraryW, (PVOID)libraryName, <span class="hljs-number">0</span>, WT_EXECUTEDEFAULT)))<br>        &#123;<br>            <span class="hljs-comment">// 等待事件对象的信号，最多等待 500 毫秒</span><br>            WaitForSingleObject(eventObject, <span class="hljs-number">500</span>);<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-comment">// 获取并返回库的模块句柄</span><br>    <span class="hljs-keyword">return</span> getModuleHandle(libraryName);<br>&#125;<br><br><span class="hljs-comment">// 主函数</span><br><span class="hljs-type">int</span> main()<br>&#123;<br>    WCHAR libraryName[] = L<span class="hljs-string">&quot;wininet.dll&quot;</span>; <span class="hljs-comment">// 要加载的库名</span><br>    <span class="hljs-comment">// 加载库并获取其句柄</span><br>    HMODULE moduleHandle = queueLoadLibrary(libraryName, <span class="hljs-literal">TRUE</span>);<br><br>    <span class="hljs-comment">// 打印模块句柄</span><br>    printf(<span class="hljs-string">&quot;0x%p&quot;</span>, moduleHandle);<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>我们把他丢进Shellcode框架中(后面再谈)，或者偷懒的可以直接PE2shellcode。</p>
+<p><img src="/AboutLoadLibrary-01/20241102031041.png" srcset="/img/loading.gif" lazyload alt="20241102031041"></p>
+<p>可以看到LoadLibrary的发起者已经变成的RtlQueueWorkItem。但是这样会有三个缺陷我们先说一个另一个后面再说，最后一个我就不说(哎，气死你)</p>
+<p>安全产品只需要对<code>RtlQueueWorkItem</code>进行密切监控就可以解决问题，同样的类似的Api还有多个这里不一一描述。</p>
+<p>我们先从爬开始学，先来了解一下这段代码做了什么：</p>
+<figure class="highlight arcade"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><code class="hljs arcade">主函数 (main)<br>│<br>├── 定义 DLL 名称: <span class="hljs-string">&quot;Wininet.dll&quot;</span><br>│<br>├── 调用 queueLoadLibrary 函数<br>│   ├── 传入参数: DLL 名称, swtch (<span class="hljs-literal">TRUE</span>)<br>│   │<br>│   ├── 进入 queueLoadLibrary<br>│   │   ├── 导入 API<br>│   │   │   ├── NtWaitForSingleObject<br>│   │   │   └── RtlQueueWorkItem<br>│   │   │<br>│   │   └── 判断 swtch<br>│   │       ├── <span class="hljs-literal">TRUE</span><br>│   │       │   ├── 调用 RtlQueueWorkItem<br>│   │       │   │   ├── 封装 LoadLibraryW 调用<br>│   │       │   │   └── 传入 DLL 名称<br>│   │       │   │<br>│   │       │   └── 调用 NtWaitForSingleObject<br>│   │       │       └── 等待一定时间<br>│   │       │<br>│   │       └── <span class="hljs-literal">FALSE</span> (未执行)<br>│   │<br>│   ├── 调用 getModuleHandle 函数<br>│   │   ├── 遍历当前进程模块列表<br>│   │   │   └── 查找 DLL 基地址<br>│   │   │<br>│   │   └── 返回模块句柄或 <span class="hljs-literal">NULL</span><br>│   │<br>│   └── 返回到主函数<br>│<br>└── 打印模块句柄<br><br></code></pre></td></tr></table></figure>
+
+<p><code>RtlQueueWorkItem</code> 之所以能帮助规避检测，主要是因为它允许在一个干净的线程上下文中异步执行代码。这意味着，当我们通过 <code>RtlQueueWorkItem</code> 请求加载一个 DLL 时，它实际上是在一个新的线程中运行，而不是在原始 shellcode 的线程中直接调用 <code>LoadLibrary</code>，当然我们先忽略别的监测点。</p>
+<p>我们用文字来抽象的描绘一下：</p>
+<p>当然，可以通过文字描述来解释代理加载的流程、线程及堆栈的变化。下面是一个简化的描述，模拟这个过程：</p>
+<ol>
+<li><p><strong>初始状态</strong>：</p>
+<ul>
+<li>当进程启动时，系统为该进程分配一个默认的堆栈，此时的堆栈指针为 <code>RSP</code>。</li>
+<li>线程创建时，堆栈中可以保存函数参数和局部变量。</li>
+</ul>
+</li>
+<li><p><strong>调用 shellcode</strong>：</p>
+<ul>
+<li>当 shellcode 开始执行时，<code>RSP</code> 指向当前堆栈的顶部，堆栈中可能保存了一些初始的局部变量。</li>
+<li>在 shellcode 中有一个调用，触发 <code>LoadLibrary</code> 以加载一个 DLL。</li>
+</ul>
+</li>
+<li><p><strong>加载 DLL 的直接调用</strong>：</p>
+<ul>
+<li>如果直接调用 <code>LoadLibrary</code>，那么当前线程的堆栈会被修改。堆栈框架中将存储调用 <code>LoadLibrary</code> 的返回地址、参数等信息。</li>
+<li>检测系统可以通过堆栈跟踪发现这个调用链。</li>
+</ul>
+</li>
+<li><p><strong>使用 RtlQueueWorkItem 进行异步加载</strong>：</p>
+<ul>
+<li>通过 <code>RtlQueueWorkItem</code> 提交一个异步任务，这个任务将在一个新的线程中执行。</li>
+<li>在新的线程中，系统为其分配一个新的堆栈，这个堆栈与原始线程的堆栈是独立的。</li>
+</ul>
+</li>
+<li><p><strong>新线程的堆栈</strong>：</p>
+<ul>
+<li>新线程的堆栈是干净的，初始状态下没有任何来自原始 shellcode 的调用信息。</li>
+<li>在这个新堆栈中执行 <code>LoadLibrary</code>，参数等信息在新堆栈中被处理。</li>
+</ul>
+</li>
+<li><p><strong>返回到主线程</strong>：</p>
+<ul>
+<li>当 DLL 加载完成后，新线程的执行结束，返回地址将被处理，原始线程的堆栈保持不变。</li>
+<li>原始线程继续执行后续的代码，但没有直接调用 <code>LoadLibrary</code> 的痕迹。</li>
+</ul>
+</li>
+</ol>
+<h4 id="原始线程堆栈（未使用代理加载）"><a href="#原始线程堆栈（未使用代理加载）" class="headerlink" title="原始线程堆栈（未使用代理加载）"></a>原始线程堆栈（未使用代理加载）</h4><figure class="highlight gherkin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs gherkin">|<span class="hljs-string">-----------Top Of The Stack-----------</span>|<br>|<span class="hljs-string">        局部变量和参数                  </span>|<br>|<span class="hljs-string">--------------------------------------</span>|<br>|<span class="hljs-string">------Stack Frame of LoadLibrary------</span>|<span class="hljs-string">  &lt;-- 调用 LoadLibrary</span><br><span class="hljs-string"></span>|<span class="hljs-string">      返回地址：shellcode 的地址         </span>|<br>|<span class="hljs-string">                                      </span>|<br>|<span class="hljs-string">-----------Bottom Of The Stack--------</span>|<br></code></pre></td></tr></table></figure>
+
+<h4 id="新线程堆栈（使用-RtlQueueWorkItem）"><a href="#新线程堆栈（使用-RtlQueueWorkItem）" class="headerlink" title="新线程堆栈（使用 RtlQueueWorkItem）"></a>新线程堆栈（使用 RtlQueueWorkItem）</h4><figure class="highlight gherkin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs gherkin">|<span class="hljs-string">-----------Top Of The Stack-----------</span>|<br>|<span class="hljs-string">      局部变量和参数 (LoadLibrary)      </span>|<br>|<span class="hljs-string">--------------------------------------</span>|<br>|<span class="hljs-string">------Stack Frame of LoadLibrary------</span>|<span class="hljs-string">  &lt;-- 调用 LoadLibrary</span><br><span class="hljs-string"></span>|<span class="hljs-string">       返回地址：新线程的返回地址         </span>|<br>|<span class="hljs-string">                                      </span>|<br>|<span class="hljs-string">-----------Bottom Of The Stack--------</span>|<br></code></pre></td></tr></table></figure>
+
+<p>通过使用 <code>RtlQueueWorkItem</code>，加载 DLL 的过程被分离到一个新线程中，堆栈中的调用信息和返回地址与原始 shellcode 无关。</p>
+<h2 id="返回地址欺骗"><a href="#返回地址欺骗" class="headerlink" title="返回地址欺骗"></a>返回地址欺骗</h2><p>我们现在来看另一种方案，返回地址欺骗。说实话这是一个古老的技术，最早用于外挂技术。</p>
+<p>注意:我们需要一个找到一个基于非易失性寄存器跳转(jmp rbx)</p>
+<p>Demo代码如下：</p>
+<figure class="highlight x86asm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><code class="hljs x86asm"><span class="hljs-meta">.code</span><br>    SpoofStub PROC<br>        <span class="hljs-keyword">pop</span> <span class="hljs-built_in">r11</span>	<span class="hljs-comment">;保存SpoofStub返回地址                </span><br>        <span class="hljs-keyword">add</span> <span class="hljs-built_in">rsp</span>, <span class="hljs-number">8</span>            <br>        <span class="hljs-keyword">mov</span> <span class="hljs-built_in">rax</span>, [<span class="hljs-built_in">rsp</span> + <span class="hljs-number">24</span>]   <span class="hljs-comment">;rax = &amp;param</span><br>  <br>        <span class="hljs-keyword">mov</span> <span class="hljs-built_in">r10</span>, [<span class="hljs-built_in">rax</span>]	<span class="hljs-comment">;   </span><br>        <span class="hljs-keyword">mov</span> [<span class="hljs-built_in">rsp</span>], <span class="hljs-built_in">r10</span>  <span class="hljs-comment">;被hook函数的返回地址为param.trampoline 也就是jmp [rbx]所在         </span><br>        <br>        <span class="hljs-keyword">mov</span> <span class="hljs-built_in">r10</span>, [<span class="hljs-built_in">rax</span> + <span class="hljs-number">8</span>] <span class="hljs-comment">;r10 = param.function 用于跳转到被hook的函数</span><br>        <span class="hljs-keyword">mov</span> [<span class="hljs-built_in">rax</span> + <span class="hljs-number">8</span>], <span class="hljs-built_in">r11</span> <span class="hljs-comment">;param.function = SpoofStub返回地址    </span><br>     <br>        <span class="hljs-keyword">mov</span> [<span class="hljs-built_in">rax</span> + <span class="hljs-number">16</span>], <span class="hljs-built_in">rbx</span> <span class="hljs-comment">;param.rbx = rbx</span><br>        <span class="hljs-keyword">lea</span> <span class="hljs-built_in">rbx</span>, fixup<br>        <span class="hljs-keyword">mov</span> [<span class="hljs-built_in">rax</span>], <span class="hljs-built_in">rbx</span> <span class="hljs-comment">;param.trampoline = fixup        </span><br>        <span class="hljs-keyword">mov</span> <span class="hljs-built_in">rbx</span>, <span class="hljs-built_in">rax</span> <span class="hljs-comment">;rbx = &amp;param.trampoline --&gt; 被hook地址返回为fixup      </span><br>        <br>        <span class="hljs-keyword">jmp</span> <span class="hljs-built_in">r10</span> <span class="hljs-comment">;跳转到被hook函数的地址 </span><br><span class="hljs-symbol">        </span><br><span class="hljs-symbol">        fixup:</span><br>            <span class="hljs-keyword">sub</span> <span class="hljs-built_in">rsp</span>, <span class="hljs-number">16</span><br>            <span class="hljs-keyword">mov</span> <span class="hljs-built_in">rcx</span>, <span class="hljs-built_in">rbx</span>          <br>            <span class="hljs-keyword">mov</span> <span class="hljs-built_in">rbx</span>, [<span class="hljs-built_in">rcx</span> + <span class="hljs-number">16</span>] <span class="hljs-comment">;还原rbx   </span><br>            <span class="hljs-keyword">jmp</span> <span class="hljs-built_in">QWORD</span> <span class="hljs-built_in">PTR</span> [<span class="hljs-built_in">rcx</span> + <span class="hljs-number">8</span>] <span class="hljs-comment">;跳出SpoofStub</span><br><br>    SpoofStub ENDP<br><br>end<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><code class="hljs cpp"><span class="hljs-meta">#<span class="hljs-keyword">pragma</span> once</span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;Windows.h&gt;</span></span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&quot;Spoofer.h&quot;</span></span><br><br><span class="hljs-keyword">typedef</span> <span class="hljs-keyword">struct</span> <span class="hljs-title class_">_PRM</span> &#123;<br>	<span class="hljs-type">const</span> <span class="hljs-type">void</span>* trampoline;<br>	<span class="hljs-type">void</span>* function;<br>	<span class="hljs-type">void</span>* rbx;<br>&#125; PRM, * PPRM;<br><br><span class="hljs-function"><span class="hljs-keyword">typedef</span> <span class="hljs-title">BOOL</span><span class="hljs-params">(WINAPI* fnCheckGadget)</span>						<span class="hljs-params">(PBYTE)</span></span>;<br><br><span class="hljs-keyword">extern</span> <span class="hljs-string">&quot;C&quot;</span> <span class="hljs-function">PVOID	<span class="hljs-title">SpoofStub</span><span class="hljs-params">(PVOID, PVOID, PVOID, PVOID, PPRM, PVOID, PVOID, PVOID, PVOID, PVOID)</span></span>;<br><br><br><span class="hljs-function">PVOID <span class="hljs-title">FindGadget</span><span class="hljs-params">(PVOID pModule, fnCheckGadget CallbackCheck)</span></span><br><span class="hljs-function"></span>&#123;<br>	<span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> i = <span class="hljs-number">0</span>;; i++)<br>	&#123;<br>		<span class="hljs-keyword">if</span> (<span class="hljs-built_in">CallbackCheck</span>((PBYTE)pModule + i))<br>			<span class="hljs-keyword">return</span> (PBYTE)pModule + i;<br>	&#125;<br>&#125;<br><br><span class="hljs-function">BOOL <span class="hljs-title">fnGadgetJmpRbx</span><span class="hljs-params">(PBYTE pAddr)</span></span><br><span class="hljs-function"></span>&#123;<br>	<span class="hljs-keyword">if</span> (<br>		((PBYTE)pAddr)[<span class="hljs-number">0</span>] == <span class="hljs-number">0xFF</span> &amp;&amp;<br>		((PBYTE)pAddr)[<span class="hljs-number">1</span>] == <span class="hljs-number">0x23</span><br>		)<br>		<span class="hljs-keyword">return</span> TRUE;<br>	<span class="hljs-keyword">else</span><br>		<span class="hljs-keyword">return</span> FALSE;<br>&#125;<br><br><span class="hljs-function">PVOID <span class="hljs-title">Spoofer</span><span class="hljs-params">(LPCSTR ModuleName, PVOID pFunction, PVOID pArg1, PVOID pArg2, PVOID pArg3, PVOID pArg4, PVOID pArg5, PVOID pArg6, PVOID pArg7, PVOID pArg8)</span></span><br><span class="hljs-function"></span>&#123;<br>	PVOID pGadgetAddr = <span class="hljs-literal">NULL</span>;<br>	PVOID pK32 = <span class="hljs-built_in">GetModuleHandleA</span>(ModuleName);<br>	pGadgetAddr = <span class="hljs-built_in">FindGadget</span>(pK32, fnGadgetJmpRbx);<br>	PRM param = &#123; pGadgetAddr, pFunction &#125;;<br><br>	PVOID pRet = <span class="hljs-built_in">SpoofStub</span>(pArg1, pArg2, pArg3, pArg4, &amp;param, <span class="hljs-literal">NULL</span>, pArg5, pArg6, pArg7, pArg8);<br>	<span class="hljs-keyword">return</span> pRet;<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>我们的工作流程如下：</p>
+<p><strong>保存返回地址</strong>：</p>
+<ul>
+<li><code>pop r11</code> 从栈中弹出返回地址（即调用 <code>SpoofStub</code> 的返回地址）并保存到 <code>r11</code> 中。</li>
+</ul>
+<p><strong>设置栈指针</strong>：</p>
+<ul>
+<li><code>add rsp, 8</code> 跳过调用约定中的参数区域，为后续操作准备栈空间。</li>
+</ul>
+<p><strong>获取参数</strong>：</p>
+<ul>
+<li><code>mov rax, [rsp + 24]</code> 将 <code>param</code> 的地址存储在 <code>rax</code> 中。</li>
+</ul>
+<p><strong>设置返回地址</strong>：</p>
+<ul>
+<li><code>mov r10, [rax]</code> 获取 <code>param.trampoline</code>（即查找到的 <code>jmp rbx</code> 指令地址）。</li>
+<li><code>mov [rsp], r10</code> 将这个地址存储为新的返回地址，确保在执行完被钩取函数后能跳转到正确的位置。</li>
+</ul>
+<p><strong>修改钩取函数信息</strong>：</p>
+<ul>
+<li><code>mov r10, [rax + 8]</code> 获取被钩取函数的地址，并将原返回地址（<code>r11</code>）存储到 <code>param.function</code> 中，以便后续恢复。</li>
+<li><code>mov [rax + 16], rbx</code> 保存当前 <code>rbx</code> 寄存器的值到 <code>param.rbx</code>。</li>
+</ul>
+<p><strong>设置钩取的 trampoline 地址</strong>：</p>
+<ul>
+<li>使用 <code>lea rbx, fixup</code> 将控制流转向 <code>fixup</code> 标签，随后将其地址存储到 <code>param.trampoline</code>。</li>
+</ul>
+<p><strong>跳转到被钩取的函数</strong>：</p>
+<ul>
+<li><code>jmp r10</code> 跳转到被钩取的函数地址，执行实际的功能。</li>
+</ul>
+<p><strong>恢复状态</strong>：</p>
+<ul>
+<li>在 <code>fixup</code> 标签处，首先恢复栈指针，并还原 <code>rbx</code> 的值。</li>
+<li>最后，通过 <code>jmp QWORD PTR [rcx + 8]</code> 跳转回原始的返回地址，确保控制流回到 <code>SpoofStub</code> 的调用处。</li>
+</ul>
+<p>通过操作栈和寄存器，创建了一个伪装的返回地址。它将原本的返回地址替换为一个新的地址，控制函数执行的返回流。</p>
+<p>我们用这种方法来加载Wininet看一下有什么区别</p>
+<figure class="highlight apache"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs apache"><span class="hljs-attribute">Spoofer</span>(pKernel32, pLoadLibraryA, PVOID(<span class="hljs-string">&quot;wininet.dll&quot;</span>), <span class="hljs-number">0</span>, <span class="hljs-number">0</span>, <span class="hljs-number">0</span>, <span class="hljs-number">0</span>, <span class="hljs-number">0</span>, <span class="hljs-number">0</span>, <span class="hljs-number">0</span>);<br></code></pre></td></tr></table></figure>
+
+<p><img src="/AboutLoadLibrary-01/20241102041035.png" srcset="/img/loading.gif" lazyload alt="20241102041035"></p>
+<p>可以观察到我们和LoadLibrary之间隔了一个<code>ReleasePackageVirtualizationContext</code>,这是啥呢，这就是我们前面找到的jmp。也就是说我们的LoadLibrary的返回地址来自<code>ReleasePackageVirtualizationContext</code>偏移0x1fa的地方。这样安全产品再分析的时候可能到这里就结束了。</p>
+<p>这是一个比较敷衍的办法，但是我觉得这是一个很好的学习教材，正如我所提倡的思维不定式，我希望更多人可以从中的到启发，而不是一味的迷信固定式解决，返回地址欺骗同样有他的价值，以及它可以衍生出其他的对抗方式，这里不做详细解释~</p>
+<h2 id="代理加载-New"><a href="#代理加载-New" class="headerlink" title="代理加载(New)"></a>代理加载(New)</h2><p>BRC4作者提出他在ntdll中逆向出了至少27个可用的回调来代理执行Windows Api，这听起来很酷，可惜我是个懒B~</p>
+<h3 id="介绍一下"><a href="#介绍一下" class="headerlink" title="介绍一下"></a>介绍一下</h3><p>Windows 回调函数是指由应用程序或操作系统在特定事件发生时调用的函数。回调机制通常用于事件驱动编程，它允许程序在发生特定条件时执行自定义代码。这些函数可以在多种场景中使用，例如消息处理、定时器、异步操作等。</p>
+<p>回调函数的特点</p>
+<ol>
+<li><strong>异步执行</strong>：回调函数通常在事件发生后被调用，而不是在主程序的控制流中被直接调用（Oops），这使得程序能够处理多个任务而不阻塞。</li>
+<li><strong>灵活性</strong>：通过使用回调函数，程序可以在运行时动态决定要执行的操作，从而提高了灵活性和可重用性。</li>
+<li><strong>参数传递</strong>：回调函数可以接受参数，这使得它们能够处理特定的数据或上下文信息。</li>
+</ol>
+<p>常见用途</p>
+<ul>
+<li><strong>消息循环</strong>：在Windows程序中，消息循环使用回调函数来处理来自系统的消息。</li>
+<li><strong>定时器</strong>：可以设置定时器，当定时器到期时调用指定的回调函数。</li>
+<li><strong>异步I&#x2F;O</strong>：在异步操作完成时，操作系统会调用相应的回调函数以处理结果。</li>
+</ul>
+<p>说个题外的基础：如何在Windows API中注册回调</p>
+<figure class="highlight objectivec"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs objectivec"><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;windows.h&gt;</span></span><br><br><span class="hljs-comment">// 回调函数定义</span><br><span class="hljs-type">void</span> <span class="hljs-built_in">CALLBACK</span> TimerProc(HWND hwnd, <span class="hljs-built_in">UINT</span> uMsg, <span class="hljs-built_in">UINT_PTR</span> idEvent, DWORD dwTime) &#123;<br>    MessageBox(<span class="hljs-literal">NULL</span>, <span class="hljs-string">&quot;Timer triggered!&quot;</span>, <span class="hljs-string">&quot;Info&quot;</span>, MB_OK);<br>&#125;<br><br><span class="hljs-type">int</span> main() &#123;<br>    <span class="hljs-comment">// 设置一个定时器</span><br>    SetTimer(<span class="hljs-literal">NULL</span>, <span class="hljs-number">0</span>, <span class="hljs-number">1000</span>, (TIMERPROC)TimerProc);<br><br>    <span class="hljs-comment">// 进入消息循环</span><br>    MSG msg;<br>    <span class="hljs-keyword">while</span> (GetMessage(&amp;msg, <span class="hljs-literal">NULL</span>, <span class="hljs-number">0</span>, <span class="hljs-number">0</span>)) &#123;<br>        TranslateMessage(&amp;msg);<br>        DispatchMessage(&amp;msg);<br>    &#125;<br>    <br>    <span class="hljs-keyword">return</span> <span class="hljs-number">0</span>;<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p><em>当定时器到期时，<code>TimerProc</code> 回调函数会被调用，显示一个消息框。</em></p>
+<p>Microsoft 贴心的为软件开发人员提供了大量回调，以便通过其他函数执行代码。有一位热心的Hxd已经替我们整理好了很多可以用来恶意利用的 <a target="_blank" rel="noopener" href="https://github.com/aahmad097/AlternativeShellcodeExec">https://github.com/aahmad097/AlternativeShellcodeExec</a> 相信很多人都熟悉这个。</p>
+<p>正如Paranoid Ninja所言所有这些回调都存在一个主要问题。执行回调时，回调与调用者线程位于同一线程中。</p>
+<p>也就是我们上面返回地址欺骗中所提到的尴尬局面：</p>
+<p><code>LoadLibrary returns to -&gt; Callback Function returns to -&gt; RX region</code></p>
+<p>为了获得干净的堆栈，我们需要确保我们的 LoadLibrary 在独立于我们的 RX 区域的单独线程中执行，如果我们使用回调，我们需要回调能够将适当的参数传递给<code>LoadLibraryA</code>。Windows 中的大多数回调要么没有参数，要么不将参数“按原样”转发给我们的目标函数“LoadLibrary”。</p>
+<p>Paranoid Ninja说的很好(不插嘴了)</p>
+<p>我们可以据此有一个大概的判断，线程池 API 可能是不错的选择。在目标线程中排队一个异步过程调用(APC)或许也可以。总之我们要找到合适的Windows Api。</p>
+<h3 id="开始摸索"><a href="#开始摸索" class="headerlink" title="开始摸索"></a>开始摸索</h3><p>Paranoid Ninja给出的Demo中选择了使用<code>TpAllocWork</code> <code>TpPostWork</code> <code>TpReleaseWork</code>这三个Windows Api去完成这一操作。</p>
+<p><code>TpAllocWork</code>、<code>TpPostWork</code> 和 <code>TpReleaseWork</code> 是 Windows 线程池 API 中的一组函数，用于创建和管理线程池中的工作项。它们的功能如下：</p>
+<ol>
+<li><strong>TpAllocWork</strong>：<ul>
+<li>用于分配一个工作项。</li>
+<li>可以指定一个回调函数，这个函数将在后台线程中执行。</li>
+<li>允许传递可选参数（虽然在某些情况下参数可能无法按预期传递）。</li>
+</ul>
+</li>
+<li><strong>TpPostWork</strong>：<ul>
+<li>将之前通过 <code>TpAllocWork</code> 分配的工作项排入线程池，以便在可用线程上异步执行。</li>
+<li>一旦工作项被排入，它将在线程池中执行，而不会阻塞调用线程。</li>
+</ul>
+</li>
+<li><strong>TpReleaseWork</strong>：<ul>
+<li>用于释放与工作项相关的资源。</li>
+<li>在工作项完成执行后调用，以确保没有内存泄漏或资源浪费。</li>
+</ul>
+</li>
+</ol>
+<p>虽然我对挖掘更多方式感兴趣，但是我太懒了一点也不想动，所以我仅仅给我我的推测和观点：</p>
+<p>寻找特定的 API，  “callback”、”thread”、”work” 等关键字。然后分析函数的参数，看是否可以</p>
+<p>通过指针、结构体等传递参数。然后检查 API 是否支持异步或后台线程执行，并且观察一下调用的堆栈状态。</p>
+<p>（<a target="_blank" rel="noopener" href="https://processhacker.sourceforge.io/doc/nttp_8h.html%EF%BC%89">https://processhacker.sourceforge.io/doc/nttp_8h.html）</a></p>
+<p><code>TpAllocWork</code> 的原型如下：</p>
+<figure class="highlight scss"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs scss">NTSTATUS NTAPI <span class="hljs-built_in">TpAllocWork</span>(<br>    PTP_WORK* ptpWrk,<br>    PTP_WORK_CALLBACK pfnwkCallback,<br>    PVOID OptionalArg,<br>    PTP_CALLBACK_ENVIRON CallbackEnvironment<br>);<br></code></pre></td></tr></table></figure>
+
+<p>其中 <code>pfnwkCallback</code> 是回调函数指针，<code>OptionalArg</code> 是一个可选参数，可以传递给回调函数。</p>
+<p><code>LoadLibraryA</code> 是一个直接调用 Windows API 加载 DLL 的函数。为了在 <code>TpAllocWork</code> 中使用它，需要一个符合回调函数签名的函数。</p>
+<p><code>TpAllocWork</code> 期望的回调函数类型是 <code>PTP_WORK_CALLBACK</code>，但 <code>LoadLibraryA</code> 不符合这个签名，因此必须间接使用。</p>
+<p>由于 <code>LoadLibraryA</code> 直接调用不符合 <code>TP_WORK_CALLBACK</code> 的签名，因此需要用一个包装函数（如前面提到的 <code>WorkCallback</code>）来接收 <code>libName</code> 参数，并调用 <code>LoadLibraryA</code>。在这种情况下，<code>libName</code> 作为 <code>OptionalArg</code> 被传递：</p>
+<ul>
+<li><code>WorkCallback</code> 可以接收 <code>Context</code> 参数，并将其传递给 <code>LoadLibraryA</code>。</li>
+</ul>
+<p>回调函数签名什么意思呢？</p>
+<p>回调函数签名是指函数的定义，包括返回类型、函数名称和参数类型。它描述了如何正确调用该函数，以及可以接受哪些类型的参数。签名通常用于指明函数的接口，使得其他代码能够正确地调用该函数。</p>
+<p>以 Windows API 中的 <code>TP_WORK_CALLBACK</code> 类型为例，其签名如下：</p>
+<figure class="highlight coq"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs coq">VOID CALLBACK WorkCallback(<br>    PTP_CALLBACK_INSTANCE <span class="hljs-keyword">Instance</span>,<br>    PVOID <span class="hljs-keyword">Context</span>,<br>    PTP_WORK Work<br>);<br></code></pre></td></tr></table></figure>
+
+<p>这个签名的组成部分是：</p>
+<ol>
+<li><strong>返回类型</strong>：<code>VOID</code> 表示该函数不返回任何值。</li>
+<li><strong>调用约定</strong>：<code>CALLBACK</code> 指明了调用约定，表示该函数的参数如何在调用时通过栈传递（例如谁负责清理栈）。</li>
+<li><strong>函数名称</strong>：<code>WorkCallback</code> 是函数的名称，调用时将使用这个名称。</li>
+<li><strong>参数列表</strong>：<ul>
+<li><code>PTP_CALLBACK_INSTANCE Instance</code>：第一个参数是指向回调实例的指针，提供上下文信息。</li>
+<li><code>PVOID Context</code>：第二个参数是一个指向用户定义数据的指针，可以传递给回调的额外信息。</li>
+<li><code>PTP_WORK Work</code>：第三个参数是指向工作对象的指针，代表与当前工作相关的上下文。</li>
+</ul>
+</li>
+</ol>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs cpp"><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;windows.h&gt;</span></span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdio.h&gt;</span></span><br><br><span class="hljs-meta">#<span class="hljs-keyword">pragma</span> comment(lib, <span class="hljs-string">&quot;ntdll.lib&quot;</span>)</span><br><br><span class="hljs-function">VOID CALLBACK <span class="hljs-title">WorkCallback</span><span class="hljs-params">(</span></span><br><span class="hljs-params"><span class="hljs-function">    _Inout_     PTP_CALLBACK_INSTANCE Instance,</span></span><br><span class="hljs-params"><span class="hljs-function">    _Inout_opt_ PVOID                 Context,</span></span><br><span class="hljs-params"><span class="hljs-function">    _Inout_     PTP_WORK              Work</span></span><br><span class="hljs-params"><span class="hljs-function">)</span> </span>&#123;<br>    <span class="hljs-built_in">LoadLibraryA</span>(Context);<br>&#125;<br><br><span class="hljs-function"><span class="hljs-type">int</span> <span class="hljs-title">main</span><span class="hljs-params">()</span> </span>&#123;<br>    CHAR* libName = <span class="hljs-string">&quot;wininet.dll&quot;</span>;<br><br>    PTP_WORK WorkReturn = <span class="hljs-literal">NULL</span>;<br>    <span class="hljs-built_in">TpAllocWork</span>(&amp;WorkReturn, WorkCallback, libName, <span class="hljs-literal">NULL</span>);<br>    <span class="hljs-built_in">TpPostWork</span>(WorkReturn);<br>    <span class="hljs-built_in">TpReleaseWork</span>(WorkReturn);<br><br>    <span class="hljs-built_in">WaitForSingleObject</span>((HANDLE)<span class="hljs-number">-1</span>, <span class="hljs-number">1000</span>);<br>    <span class="hljs-built_in">printf</span>(<span class="hljs-string">&quot;hWininet: %p\n&quot;</span>, <span class="hljs-built_in">GetModuleHandleA</span>(libName));<br><br>    <span class="hljs-keyword">return</span> <span class="hljs-number">0</span>;<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+
+
+<p><img src="/AboutLoadLibrary-01/20241102054028.png" srcset="/img/loading.gif" lazyload alt="20241102054028"></p>
+<p>我们的堆栈现在好像变得清澈无比（陷入沉思），但是！Paranoid Ninja想要追求更完美的堆栈，那么哪里不完美呢。</p>
+<p>具体来说，调用 <code>LoadLibraryA</code> 后，返回地址的顺序变成了：</p>
+<ol>
+<li><code>LoadLibraryA</code> 的返回地址（指向回调函数）。</li>
+<li>回调函数的返回地址（指向 <code>RtlUserThreadStart</code>）。</li>
+<li>最后是 <code>TpPostWork</code> 的返回地址。</li>
+</ol>
+<p>根据我的观察：</p>
+<p>当调用 <code>LoadLibraryA</code> 时，栈的状态可以描述如下：</p>
+<ol>
+<li><p><strong><code>LoadLibraryA</code> 的返回地址</strong>：这个地址指向 <code>WorkCallback</code> 函数结束后程序应该跳转的位置，即 <code>LoadLibraryA</code> 完成后会返回到这个地址。</p>
+</li>
+<li><p><strong><code>WorkCallback</code> 的返回地址</strong>：在 <code>LoadLibraryA</code> 被调用时，程序的控制权会传递给 <code>WorkCallback</code>，这个地址是 <code>WorkCallback</code> 函数结束后应该返回的位置，通常是指向 <code>RtlUserThreadStart</code> 的地址。</p>
+</li>
+<li><p><strong><code>RtlUserThreadStart</code> 的返回地址</strong>：这是系统级的调用，指向线程的起始点，通常是由 <code>TpPostWork</code> 调用的返回地址。</p>
+</li>
+</ol>
+<p>因此，这个栈的结构可以被表示为：</p>
+<figure class="highlight gherkin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs gherkin">|<span class="hljs-string">------------------------</span>|<span class="hljs-string">  &lt;- 栈顶</span><br><span class="hljs-string"></span>|<span class="hljs-string">RtlUserThreadStart返回地址</span>|<br>|<span class="hljs-string">------------------------</span>|<br>|<span class="hljs-string"> WorkCallback返回地址    </span>|<span class="hljs-string">  &lt;- 返回到 RtlUserThreadStart</span><br><span class="hljs-string"></span>|<span class="hljs-string">------------------------</span>|<br>|<span class="hljs-string">  LoadLibraryA返回地址    </span>|<span class="hljs-string">  &lt;- 返回到 WorkCallback</span><br><span class="hljs-string"></span>|<span class="hljs-string">------------------------</span>|<span class="hljs-string">  &lt;- 栈底</span><br></code></pre></td></tr></table></figure>
+
+<p><img src="/AboutLoadLibrary-01/20241102065125.png" srcset="/img/loading.gif" lazyload alt="20241102065125"></p>
+<p><img src="/AboutLoadLibrary-01/20241102065938.png" srcset="/img/loading.gif" lazyload alt="20241102065125"></p>
+<figure class="highlight scss"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs scss">&gt;	KernelBase<span class="hljs-selector-class">.dll</span>!<span class="hljs-built_in">LoadLibraryA</span>()	未知<br> 	ntdll<span class="hljs-selector-class">.dll</span>!<span class="hljs-built_in">TppWorkpExecuteCallback</span>()	未知<br> 	ntdll<span class="hljs-selector-class">.dll</span>!<span class="hljs-built_in">TppWorkerThread</span>()	未知<br> 	kernel32<span class="hljs-selector-class">.dll</span>!<span class="hljs-built_in">BaseThreadInitThunk</span>()	未知<br> 	ntdll<span class="hljs-selector-class">.dll</span>!<span class="hljs-built_in">RtlUserThreadStart</span>()	未知<br><br></code></pre></td></tr></table></figure>
+
+<p>我可怜的ProcessHacker卡住了用文字描述吧。</p>
+<p>不能理解的多看几遍自行理解，当 <code>LoadLibraryA</code> 被调用时，返回地址（<code>Callback in RX Region</code>）也会被压入栈。这意味着返回过程会变得更加复杂，最终的栈帧包含了许多额外的层级。我们现在试图直接从调用<code>TpPostWork</code>到<code>LoadLibrary</code>省略中间的一层弯弯绕绕导致不必要的EDR跟随。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><code class="hljs cpp"><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;windows.h&gt;</span></span><br><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdio.h&gt;</span></span><br><br><span class="hljs-function"><span class="hljs-keyword">typedef</span> <span class="hljs-title">NTSTATUS</span><span class="hljs-params">(NTAPI* TPALLOCWORK)</span><span class="hljs-params">(PTP_WORK* ptpWrk, PTP_WORK_CALLBACK pfnwkCallback, PVOID OptionalArg, PTP_CALLBACK_ENVIRON CallbackEnvironment)</span></span>;<br><span class="hljs-function"><span class="hljs-keyword">typedef</span> <span class="hljs-title">VOID</span><span class="hljs-params">(NTAPI* TPPOSTWORK)</span><span class="hljs-params">(PTP_WORK)</span></span>;<br><span class="hljs-function"><span class="hljs-keyword">typedef</span> <span class="hljs-title">VOID</span><span class="hljs-params">(NTAPI* TPRELEASEWORK)</span><span class="hljs-params">(PTP_WORK)</span></span>;<br><br>FARPROC pLoadLibraryA;<br><br><span class="hljs-function">UINT_PTR <span class="hljs-title">getLoadLibraryA</span><span class="hljs-params">()</span> </span>&#123;<br>    <span class="hljs-keyword">return</span> (UINT_PTR)pLoadLibraryA;<br>&#125;<br><br><span class="hljs-function"><span class="hljs-keyword">extern</span> VOID CALLBACK <span class="hljs-title">WorkCallback</span><span class="hljs-params">(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work)</span></span>;<br><br><span class="hljs-function"><span class="hljs-type">int</span> <span class="hljs-title">main</span><span class="hljs-params">()</span> </span>&#123;<br>    pLoadLibraryA = <span class="hljs-built_in">GetProcAddress</span>(<span class="hljs-built_in">GetModuleHandleA</span>(<span class="hljs-string">&quot;kernel32&quot;</span>), <span class="hljs-string">&quot;LoadLibraryA&quot;</span>);<br>    FARPROC pTpAllocWork = <span class="hljs-built_in">GetProcAddress</span>(<span class="hljs-built_in">GetModuleHandleA</span>(<span class="hljs-string">&quot;ntdll&quot;</span>), <span class="hljs-string">&quot;TpAllocWork&quot;</span>);<br>    FARPROC pTpPostWork = <span class="hljs-built_in">GetProcAddress</span>(<span class="hljs-built_in">GetModuleHandleA</span>(<span class="hljs-string">&quot;ntdll&quot;</span>), <span class="hljs-string">&quot;TpPostWork&quot;</span>);<br>    FARPROC pTpReleaseWork = <span class="hljs-built_in">GetProcAddress</span>(<span class="hljs-built_in">GetModuleHandleA</span>(<span class="hljs-string">&quot;ntdll&quot;</span>), <span class="hljs-string">&quot;TpReleaseWork&quot;</span>);<br><br>    CHAR* libName = <span class="hljs-string">&quot;wininet.dll&quot;</span>;<br>    PTP_WORK WorkReturn = <span class="hljs-literal">NULL</span>;<br>    ((TPALLOCWORK)pTpAllocWork)(&amp;WorkReturn, (PTP_WORK_CALLBACK)WorkCallback, libName, <span class="hljs-literal">NULL</span>);<br>    ((TPPOSTWORK)pTpPostWork)(WorkReturn);<br>    ((TPRELEASEWORK)pTpReleaseWork)(WorkReturn);<br><br>    <span class="hljs-built_in">WaitForSingleObject</span>((HANDLE)<span class="hljs-number">-1</span>, <span class="hljs-number">0x1000</span>);<br>    <span class="hljs-built_in">printf</span>(<span class="hljs-string">&quot;hWininet: %p\n&quot;</span>, <span class="hljs-built_in">GetModuleHandleA</span>(libName));<br><br>    <span class="hljs-keyword">return</span> <span class="hljs-number">0</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>MASM</p>
+<figure class="highlight x86asm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs x86asm"><span class="hljs-comment">; 声明外部函数</span><br><span class="hljs-meta">extern</span> getLoadLibraryA:<span class="hljs-built_in">near</span><br><span class="hljs-meta"></span><br><span class="hljs-meta">.code</span><br><br><span class="hljs-comment">; 回调函数</span><br>WorkCallback PROC<br>    <span class="hljs-comment">; 将第二个参数 Context 移动到 rcx</span><br>    <span class="hljs-keyword">mov</span> <span class="hljs-built_in">rcx</span>, <span class="hljs-built_in">rdx</span><br>    <span class="hljs-comment">; 清零 rdx，作为 LoadLibraryA 的第二个参数</span><br>    <span class="hljs-keyword">xor</span> <span class="hljs-built_in">rdx</span>, <span class="hljs-built_in">rdx</span><br>    <span class="hljs-comment">; 调用 getLoadLibraryA</span><br>    <span class="hljs-keyword">call</span> getLoadLibraryA<br>    <span class="hljs-comment">; 跳转到 LoadLibraryA 的返回地址</span><br>    <span class="hljs-keyword">jmp</span> <span class="hljs-built_in">rax</span><br>WorkCallback ENDP<br><br>END<br><br></code></pre></td></tr></table></figure>
+
+<p>为什么要这么做呢，我们直接看重点<code>WorkCallback</code></p>
+<p>根据前面Stack的介绍我们知道，函数调用时需要保存调用者的上下文，所以我们直接调用 <code>LoadLibraryA</code>，而不通过 <code>WorkCallback</code> 的返回地址，用一些汇编技巧，这样看起来就像是我们实现了一个<code>LoadLibraryA</code>的Stub。：通过这种方法，调用 <code>LoadLibraryA</code> 时不会将 <code>WorkCallback</code> 的返回地址推入栈中，堆栈结构保持简单，没有多余的层级。</p>
+<ul>
+<li><p><code>mov rcx, rdx</code> 将传入的库名（存储在 RDX 中）移动到 RCX 中，这是 <code>LoadLibraryA</code> 的第一个参数。</p>
+</li>
+<li><p><code>xor rdx, rdx</code> 将 RDX 清零，作为 <code>LoadLibraryA</code> 的第二个参数。</p>
+</li>
+<li><p><code>call getLoadLibraryA</code> 调用一个函数以获取 <code>LoadLibraryA</code> 的地址。</p>
+</li>
+<li><p><code>jmp rax</code> 跳转到 <code>LoadLibraryA</code> 的地址，直接执行而不推送返回地址到栈中。</p>
+</li>
+</ul>
+<p>现在再回头看我们的堆栈，</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc"><span class="hljs-section">猜测:</span><br><span class="hljs-section">+-----------------------------+</span><br><span class="hljs-section">|    返回地址 (TpPostWork)      |  &lt;- 栈顶</span><br><span class="hljs-section">+-----------------------------+</span><br><span class="hljs-section">|    WorkCallback 上下文        |</span><br><span class="hljs-section">+-----------------------------+</span><br><span class="hljs-section">|   libName (参数)             |</span><br><span class="hljs-section">+-----------------------------+</span><br><span class="hljs-section">|   ...                       |</span><br><span class="hljs-section">+-----------------------------+</span><br><span class="hljs-section">|     (空或其他局部变量)         |</span><br><span class="hljs-section">+-----------------------------+</span><br><span class="hljs-section">|    LoadLibraryA 返回地址      |  &lt;- 被清空，不在栈中</span><br><span class="hljs-section">+-----------------------------+</span><br><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight scss"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs scss">&gt;	kernel32<span class="hljs-selector-class">.dll</span>!<span class="hljs-built_in">LoadLibraryAStub</span>()	未知<br> 	ntdll<span class="hljs-selector-class">.dll</span>!<span class="hljs-built_in">TppWorkpExecuteCallback</span>()	未知<br> 	ntdll<span class="hljs-selector-class">.dll</span>!<span class="hljs-built_in">TppWorkerThread</span>()	未知<br> 	kernel32<span class="hljs-selector-class">.dll</span>!<span class="hljs-built_in">BaseThreadInitThunk</span>()	未知<br> 	ntdll<span class="hljs-selector-class">.dll</span>!<span class="hljs-built_in">RtlUserThreadStart</span>()	未知<br><br></code></pre></td></tr></table></figure>
+
+<p><img src="/AboutLoadLibrary-01/20241102072352.png" srcset="/img/loading.gif" lazyload alt="20241102072352"></p>
+<h2 id="绕过重获新生"><a href="#绕过重获新生" class="headerlink" title="绕过重获新生"></a>绕过重获新生</h2><p>Emmm真不错我们成功的学会了这个对抗技术，但是很快就被推出了新的检测规则，</p>
+<figure class="highlight pgsql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs pgsql"><span class="hljs-keyword">sequence</span> <span class="hljs-keyword">by</span> process.entity_id <br> [process <span class="hljs-keyword">where</span> event.action == &quot;start&quot;]<br> [library <span class="hljs-keyword">where</span> <br> (<br>  ((dll.Ext.relative_file_creation_time &lt;= <span class="hljs-number">300</span> <span class="hljs-keyword">or</span><br>    (dll.Ext.device.product_id : (&quot;Virtual DVD-ROM&quot;, &quot;Virtual Disk&quot;) <span class="hljs-keyword">and</span> <span class="hljs-keyword">not</span> dll.path : &quot;C:\\*&quot;)) <span class="hljs-keyword">and</span><br>   (dll.code_signature.<span class="hljs-keyword">trusted</span> == <span class="hljs-keyword">false</span> <span class="hljs-keyword">or</span> dll.code_signature.<span class="hljs-keyword">exists</span> == <span class="hljs-keyword">false</span>)) <span class="hljs-keyword">or</span> <br>  <br>   dll.name : (&quot;vaultcli.dll&quot;, &quot;wmiutils.dll&quot;, &quot;taskschd.dll&quot;, &quot;dnsapi.dll&quot;, &quot;dsquery.dll&quot;, <br>              &quot;mstask.dll&quot;, &quot;mstscax.dll&quot;, &quot;sqlite3.dll&quot;, &quot;clr.dll&quot;, &quot;coreclr.dll&quot;, &quot;ws2_32.dll&quot;, <br>              &quot;wininet.dll&quot;, &quot;dnsapi.dll&quot;, &quot;winhttp.dll&quot;, &quot;psapi.dll&quot;, &quot;bitsproxy.dll&quot;, &quot;softokn3.dll&quot;, <br>              &quot;System.Management.Automation.dll&quot;, &quot;Wldap32.dll&quot;)<br> ) <span class="hljs-keyword">and</span> <br><br> process.thread.Ext.call_stack_summary : <br>                (&quot;ntdll.dll|kernelbase.dll|ntdll.dll|kernel32.dll|ntdll.dll&quot;, <br>                 &quot;ntdll.dll|wow64.dll|wow64cpu.dll|wow64.dll|ntdll.dll|kernelbase.dll|ntdll.dll|kernel32.dll|ntdll.dll&quot;)]<br> <span class="hljs-keyword">until</span> [process <span class="hljs-keyword">where</span> event.action == &quot;end&quot;]<br></code></pre></td></tr></table></figure>
+
+<p>简单理解一下</p>
+<ul>
+<li><p>首先按进程 ID 进行排序**：</p>
+<ul>
+<li>获取所有 “start” 操作的进程。</li>
+</ul>
+</li>
+<li><p><strong>库文件条件</strong>：</p>
+<ul>
+<li>要求以下情况之一成立：<ul>
+<li>DLL 文件的相对创建时间小于等于 300 秒，或者设备产品 ID 为虚拟 DVD-ROM 或虚拟磁盘且不在 “C:*” 路径下，同时文件的代码签名不受信任或不存在；</li>
+<li>或者 DLL 的名称为特定列表中的某一个，例如 “vaultcli.dll”、”wmiutils.dll” 等等。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p><strong>线程调用栈条件</strong>：</p>
+<ul>
+<li>仅选择具有特定调用栈摘要的进程。这些摘要包括 “ntdll.dll|kernelbase.dll|ntdll.dll|kernel32.dll|ntdll.dll” 或类似结构的组合。</li>
+</ul>
+</li>
+<li><p><strong>结束条件</strong>：</p>
+<ul>
+<li>直到找到对应的 “end” 操作的进程。</li>
+</ul>
+</li>
+</ul>
+<p>也就是说我们可以观察到的组合有两种</p>
+<ol>
+<li>调用栈组合 1:<ul>
+<li>ntdll.dll -&gt; kernelbase.dll -&gt; ntdll.dll -&gt; kernel32.dll -&gt; ntdll.dll</li>
+</ul>
+</li>
+<li>调用栈组合 2:<ul>
+<li>ntdll.dll -&gt; wow64.dll -&gt; wow64cpu.dll -&gt; wow64.dll -&gt; ntdll.dll -&gt; kernelbase.dll -&gt; ntdll.dll -&gt; kernel32.dll -&gt; ntdll.dll</li>
+</ul>
+</li>
+</ol>
+<p>我们看一下代理调用的堆栈：</p>
+<figure class="highlight llvm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><code class="hljs llvm">C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!ZwMapViewOfSection</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">14</span><br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!LdrControlFlowGuardEnforced</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">69</span><span class="hljs-keyword">c</span><br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!LdrControlFlowGuardEnforced</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">29</span>a<br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!LdrControlFlowGuardEnforced</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">424</span><br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!RtlQueryPerformanceCounter</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">24</span>f<br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!RtlQueryPerformanceCounter</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">708</span><br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!RtlQueryPerformanceCounter</span><span class="hljs-number">+0</span>xad<span class="hljs-number">0</span><br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!RtlImageRvaToSection</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">1e4</span><br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!RtlUnicodeToCustomCPN</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">3</span>fc<br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!LdrLoadDll</span><span class="hljs-number">+0</span>xfa<br><br>C:\Windows\System<span class="hljs-number">32</span>\KernelBase.dll<span class="hljs-title">!LoadLibraryExW</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">172</span><br><br>C:\Windows\System<span class="hljs-number">32</span>\KernelBase.dll<span class="hljs-title">!LoadLibraryExA</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">31</span><br><br>C:\Windows\System<span class="hljs-number">32</span>\KernelBase.dll<span class="hljs-title">!LoadLibraryA</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">3</span>f<br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!TpReleaseWork</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">262</span><br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!RtlClearThreadWorkOnBehalfTicket</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">79</span><span class="hljs-keyword">c</span><br><br>C:\Windows\System<span class="hljs-number">32</span>\kernel<span class="hljs-number">32</span>.dll<span class="hljs-title">!BaseThreadInitThunk</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">1</span>d<br><br>C:\Windows\System<span class="hljs-number">32</span>\ntdll.dll<span class="hljs-title">!RtlUserThreadStart</span><span class="hljs-number">+0</span><span class="hljs-keyword">x</span><span class="hljs-number">28</span><br></code></pre></td></tr></table></figure>
+
+<p>很显然命中了：<code>ntdll.dll|kernelbase.dll|ntdll.dll|kernel32.dll|ntdll.dll</code></p>
+<p>那么我们只要把这个过程改变为使用<code>LdrLoadDll</code>直接越过了中间的<code>kernelbase.dll</code><br>堆栈的调用过程变成了 <code>ntdll.dll|kernel32.dll|ntdll.dll</code></p>
+<p>最合理的调用过程应该是 <code>ntdll.dll|kernelbase.dll|kernel32.dll|ntdll.dll</code></p>
+<p>写的有些疲惫了，如有写错的地方请联系我及时更正，感激不尽！</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/bypass-opsec/" class="print-no-link">#bypass opsec</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>LoadLibrary的那些事儿（一）</div>
+      <div>https://kyxiaxiang.github.io/2024/11/01/AboutLoadLibrary-01/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>keyixiaxiang</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年11月1日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-cc-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2022/12/14/AMSIandEtw/" title="浅谈AMSI和ETW">
+                        <span class="hidden-mobile">浅谈AMSI和ETW</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/5.0.0/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

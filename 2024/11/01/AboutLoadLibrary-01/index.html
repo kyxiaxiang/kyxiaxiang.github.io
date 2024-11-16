@@ -43,7 +43,7 @@
 <meta property="og:image" content="https://kyxiaxiang.github.io/img/20241102065938.png">
 <meta property="og:image" content="https://kyxiaxiang.github.io/img/20241102072352.png">
 <meta property="article:published_time" content="2024-11-01T16:58:49.000Z">
-<meta property="article:modified_time" content="2024-11-02T12:57:14.335Z">
+<meta property="article:modified_time" content="2024-11-15T08:39:16.276Z">
 <meta property="article:author" content="keyixiaxiang">
 <meta property="article:tag" content="bypass">
 <meta name="twitter:card" content="summary_large_image">
@@ -444,7 +444,7 @@
 <p>那么安全产品就可以追踪到这块内存进行告警和内存扫描。</p>
 <h3 id="如何避免被评判"><a href="#如何避免被评判" class="headerlink" title="如何避免被评判"></a>如何避免被评判</h3><p>我们把思路转换一下，从如何避免产生转换为如何避免被评判为非法的，这样会让我们变的更加轻松愉快。</p>
 <p>我们可以注意到，再逆向ntdll的过程中我们发现了两个可以使EDR知道我们加载了这个DLL的方案，一个是回调通知一个是ETW。但是归根结底，目前通用的检测方案是对于加载过程的堆栈进行评判，所以我们需要一个干净的堆栈。</p>
-<h2 id="什么是堆栈"><a href="#什么是堆栈" class="headerlink" title="什么是堆栈"></a>什么是堆栈</h2><p>灵魂发文：什么是堆栈？</p>
+<h2 id="什么是堆栈"><a href="#什么是堆栈" class="headerlink" title="什么是堆栈"></a>什么是堆栈</h2><p>灵魂发问：什么是堆栈？</p>
 <p>确切的说我们这里是要讨论栈(stack),堆是(Heap)我们今天只讨论Stack。为了口语上的舒适我习惯称为堆栈。这里我白嫖一下BRC4作者的一些书面。</p>
 <p>堆栈（Stack）是计算机科学中用于临时存储数据的一种数据结构，通常用于存放局部变量和函数参数。可以将堆栈想象成一叠书，最后放上去的书会最先被拿走，这就是“后进先出”（Last In, First Out, LIFO）的原则。</p>
 <p>在程序执行时，每当一个新线程被创建时，系统会为这个线程分配一个新的堆栈空间。这个堆栈的初始大小通常为1MB，除非开发者在创建线程时明确指定其他大小。堆栈从底部向顶部增长，像一个叠书一样。在这个过程中，当前的堆栈指针由寄存器（在x64中是RSP，在x86中是ESP）来存储，指示着当前堆栈的顶部位置。</p>
@@ -905,6 +905,12 @@
                 <div class="post-prevnext my-3">
                   <article class="post-prev col-6">
                     
+                    
+                      <a href="/2024/11/15/AboutLoadLibrary-02/" title="LoadLibrary的那些事儿（二）">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">LoadLibrary的那些事儿（二）</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
                     
                   </article>
                   <article class="post-next col-6">

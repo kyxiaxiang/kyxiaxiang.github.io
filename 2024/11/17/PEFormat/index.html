@@ -26,15 +26,15 @@
 <meta property="og:site_name" content="可以遐想的Blog">
 <meta property="og:description" content="PE文件的格式是一个很重要的基础知识，我希望有一天我的Blog可以适宜很多阶段的人学习，不管是小白还是初学者亦或者是回顾的人。 什么是PE文件PE（Portable Executable）文件是一种可移植可执行文件格式，是Windows操作系统中应用程序（EXE）、动态链接库（DLL）和驱动程序（SYS）等二进制文件的标准文件格式。PE文件可以包含代码、数据、资源以及操作系统加载器在运行时执行程">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="https://kyxiaxiang.github.io/PEFormat/PE-001.png">
+<meta property="og:image" content="https://kyxiaxiang.github.io/img/PE-001.png">
 <meta property="og:image" content="https://github.com/corkami/pics/raw/master/binary/pe101/pe101.png">
 <meta property="og:image" content="https://github.com/corkami/pics/raw/master/binary/pe101/pe101-64.png">
 <meta property="article:published_time" content="2024-11-17T12:33:55.000Z">
-<meta property="article:modified_time" content="2024-11-17T15:16:28.851Z">
+<meta property="article:modified_time" content="2024-11-17T15:23:24.181Z">
 <meta property="article:author" content="keyixiaxiang">
 <meta property="article:tag" content="基础">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://kyxiaxiang.github.io/PEFormat/PE-001.png">
+<meta name="twitter:image" content="https://kyxiaxiang.github.io/img/PE-001.png">
   
   
   
@@ -285,7 +285,7 @@
 <p>它是基于Unix的COFF（Common Object File Format）而来，用于存储编译后的中间文件。，COFF则是PE的前身，但PE文件并不仅仅是COFF文件，而是将COFF的某些特性扩展并融入了Windows特有的结构。在Windows中，PE文件实际上包含了一个COFF头（在PE Header中被称为“File Header”），因此可以说PE文件部分基于COFF格式。</p>
 <p>在Unix和Linux中，<strong>COFF逐渐被ELF（Executable and Linkable Format）取代</strong>，因为ELF在功能和灵活性方面更强。</p>
 <p>在Windows中，COFF演变成了PE（Portable Executable）格式，并得到了进一步扩展，增加了更多与Windows操作系统紧密结合的功能（例如导入&#x2F;导出表、重定位表等）。</p>
-<h2 id="初识"><a href="#初识" class="headerlink" title="初识"></a>初识</h2><p><img src="/PEFormat/PE-001.png" srcset="/img/loading.gif" lazyload alt="PE-001"></p>
+<h2 id="初识"><a href="#初识" class="headerlink" title="初识"></a>初识</h2><p><img src="https://kyxiaxiang.github.io/img/PE-001.png" srcset="/img/loading.gif" lazyload alt="PE-001"></p>
 <p>我们使用十六进制编辑器 010 Editor打开一个PE文件，就是上图这个样子，当然使用WinHex等工具也是没有任何问题的。我们使用编辑器打开这个文件才可以最清晰根本的感受到这个文件在我们的硬盘中是什么样子的。</p>
 <p><img src="https://github.com/corkami/pics/raw/master/binary/pe101/pe101.png" srcset="/img/loading.gif" lazyload alt="img"></p>
 <p><img src="https://github.com/corkami/pics/raw/master/binary/pe101/pe101-64.png" srcset="/img/loading.gif" lazyload alt="img"></p>

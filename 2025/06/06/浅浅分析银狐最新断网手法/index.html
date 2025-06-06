@@ -19,12 +19,12 @@
   <meta name="author" content="keyixiaxiang">
   <meta name="keywords" content="">
   
-    <meta name="description" content="浅浅分析银狐最新断网手法本来打算起名 揭秘数字安全产品断网机制：从 SetTcpEntry 到 NsiSetAllParameters 感觉太装了算了还是低调一点的好。 在当前的安全防护体系中，越来越多的国产安全产品（如数字等）采用“云依赖”模式 —— 核心规则、主动防护、样本查杀全部由云端驱动。根据最新的银狐样本发现小黑们针对数字做了定向断网，一旦失去网络连接，它的“战斗力”将迅速下降。偶然想起">
+    <meta name="description" content="123title: 浅浅分析银狐最新断网手法date: 2025-06-06 00:33:00tags: bypass  浅浅分析银狐最新断网手法本来打算起名 揭秘数字安全产品断网机制：从 SetTcpEntry 到 NsiSetAllParameters 感觉太装了算了还是低调一点的好。 在当前的安全防护体系中，越来越多的国产安全产品（如数字等）采用“云依赖”模式 —— 核心规则、主动防护、样本">
 <meta property="og:type" content="article">
 <meta property="og:title" content="可以遐想的Blog">
 <meta property="og:url" content="https://kyxiaxiang.github.io/2025/06/06/%E6%B5%85%E6%B5%85%E5%88%86%E6%9E%90%E9%93%B6%E7%8B%90%E6%9C%80%E6%96%B0%E6%96%AD%E7%BD%91%E6%89%8B%E6%B3%95/index.html">
 <meta property="og:site_name" content="可以遐想的Blog">
-<meta property="og:description" content="浅浅分析银狐最新断网手法本来打算起名 揭秘数字安全产品断网机制：从 SetTcpEntry 到 NsiSetAllParameters 感觉太装了算了还是低调一点的好。 在当前的安全防护体系中，越来越多的国产安全产品（如数字等）采用“云依赖”模式 —— 核心规则、主动防护、样本查杀全部由云端驱动。根据最新的银狐样本发现小黑们针对数字做了定向断网，一旦失去网络连接，它的“战斗力”将迅速下降。偶然想起">
+<meta property="og:description" content="123title: 浅浅分析银狐最新断网手法date: 2025-06-06 00:33:00tags: bypass  浅浅分析银狐最新断网手法本来打算起名 揭秘数字安全产品断网机制：从 SetTcpEntry 到 NsiSetAllParameters 感觉太装了算了还是低调一点的好。 在当前的安全防护体系中，越来越多的国产安全产品（如数字等）采用“云依赖”模式 —— 核心规则、主动防护、样本">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://kyxiaxiang.github.io/%E6%B5%85%E6%B5%85%E5%88%86%E6%9E%90%E9%93%B6%E7%8B%90%E6%9C%80%E6%96%B0%E6%96%AD%E7%BD%91%E6%89%8B%E6%B3%95/image.png">
 <meta property="og:image" content="https://kyxiaxiang.github.io/%E6%B5%85%E6%B5%85%E5%88%86%E6%9E%90%E9%93%B6%E7%8B%90%E6%9C%80%E6%96%B0%E6%96%AD%E7%BD%91%E6%89%8B%E6%B3%95/image%201.png">
@@ -41,7 +41,7 @@
 <meta property="og:image" content="https://kyxiaxiang.github.io/%E6%B5%85%E6%B5%85%E5%88%86%E6%9E%90%E9%93%B6%E7%8B%90%E6%9C%80%E6%96%B0%E6%96%AD%E7%BD%91%E6%89%8B%E6%B3%95/image%2012.png">
 <meta property="og:image" content="https://kyxiaxiang.github.io/%E6%B5%85%E6%B5%85%E5%88%86%E6%9E%90%E9%93%B6%E7%8B%90%E6%9C%80%E6%96%B0%E6%96%AD%E7%BD%91%E6%89%8B%E6%B3%95/image%2013.png">
 <meta property="article:published_time" content="2025-06-06T09:23:16.564Z">
-<meta property="article:modified_time" content="2025-06-06T09:25:43.340Z">
+<meta property="article:modified_time" content="2025-06-06T09:29:47.037Z">
 <meta property="article:author" content="keyixiaxiang">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://kyxiaxiang.github.io/%E6%B5%85%E6%B5%85%E5%88%86%E6%9E%90%E9%93%B6%E7%8B%90%E6%9C%80%E6%96%B0%E6%96%AD%E7%BD%91%E6%89%8B%E6%B3%95/image.png">
@@ -248,7 +248,7 @@
         
         
         
-          26 分钟
+          27 分钟
         
       </span>
     
@@ -290,7 +290,9 @@
             
               <div class="markdown-body">
                 
-                <h1 id="浅浅分析银狐最新断网手法"><a href="#浅浅分析银狐最新断网手法" class="headerlink" title="浅浅分析银狐最新断网手法"></a>浅浅分析银狐最新断网手法</h1><p>本来打算起名 揭秘数字安全产品断网机制：从 SetTcpEntry 到 NsiSetAllParameters 感觉太装了算了还是低调一点的好。</p>
+                <figure class="highlight subunit"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs subunit">title: 浅浅分析银狐最新断网手法<br>date: 2025<span class="hljs-string">-06</span><span class="hljs-string">-06</span> 00:33:00<br><span class="hljs-keyword">tags:</span> bypass<br></code></pre></td></tr></table></figure>
+
+<h1 id="浅浅分析银狐最新断网手法"><a href="#浅浅分析银狐最新断网手法" class="headerlink" title="浅浅分析银狐最新断网手法"></a>浅浅分析银狐最新断网手法</h1><p>本来打算起名 揭秘数字安全产品断网机制：从 SetTcpEntry 到 NsiSetAllParameters 感觉太装了算了还是低调一点的好。</p>
 <p>在当前的安全防护体系中，越来越多的国产安全产品（如数字等）采用“云依赖”模式 —— 核心规则、主动防护、样本查杀全部由云端驱动。根据最新的银狐样本发现小黑们针对数字做了定向断网，一旦失去网络连接，它的“战斗力”将迅速下降。偶然想起来在闲鱼还见到有人卖 所谓的 0day断网，想来也是这种方法。今天来浅浅的剖析一下。透过小小的样本来带各位进行深度的思考，如何最大化的规避。</p>
 <p>某度搜索的前几位都是银狐，不做评价~</p>
 <p><img src="/%E6%B5%85%E6%B5%85%E5%88%86%E6%9E%90%E9%93%B6%E7%8B%90%E6%9C%80%E6%96%B0%E6%96%AD%E7%BD%91%E6%89%8B%E6%B3%95/image.png" srcset="/img/loading.gif" lazyload alt="image.png"></p>
